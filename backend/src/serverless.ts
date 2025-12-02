@@ -4,27 +4,42 @@ import serverlessExpress from '@vendia/serverless-express';
 import { Callback, Context, Handler } from 'aws-lambda';
 import { AppModule } from './app.module';
 
-let server: Handler;
+let server: Handler | null = null;
+let bootstrapPromise: Promise<Handler> | null = null;
 
 async function bootstrap(): Promise<Handler> {
-  const app = await NestFactory.create(AppModule);
+  // Use promise-based lock to prevent race conditions with concurrent requests
+  if (bootstrapPromise) {
+    return bootstrapPromise;
+  }
   
-  // Enable CORS
-  app.enableCors({
-    origin: true, // Allow all origins in serverless (Vercel handles this)
-    credentials: true,
-  });
+  if (server) {
+    return server;
+  }
   
-  // Enable validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true,
-  }));
+  bootstrapPromise = (async () => {
+    const app = await NestFactory.create(AppModule);
+    
+    // Enable CORS
+    app.enableCors({
+      origin: true, // Allow all origins in serverless (Vercel handles this)
+      credentials: true,
+    });
+    
+    // Enable validation
+    app.useGlobalPipes(new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }));
+    
+    await app.init();
+    
+    const expressApp = app.getHttpAdapter().getInstance();
+    server = serverlessExpress({ app: expressApp });
+    return server;
+  })();
   
-  await app.init();
-  
-  const expressApp = app.getHttpAdapter().getInstance();
-  return serverlessExpress({ app: expressApp });
+  return bootstrapPromise;
 }
 
 export const handler: Handler = async (
@@ -32,7 +47,7 @@ export const handler: Handler = async (
   context: Context,
   callback: Callback,
 ) => {
-  server = server ?? (await bootstrap());
-  return server(event, context, callback);
+  const serverHandler = await bootstrap();
+  return serverHandler(event, context, callback);
 };
 
