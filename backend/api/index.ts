@@ -45,8 +45,24 @@ async function bootstrap(): Promise<RequestHandler> {
   return bootstrapPromise;
 }
 
+/**
+ * Safely extract origin string from request headers.
+ * Node.js headers can be string | string[] | undefined.
+ * Origin header should always be a single string value.
+ */
+function getOriginString(origin: string | string[] | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+  // If it's an array, use the first element
+  if (Array.isArray(origin)) {
+    return origin[0];
+  }
+  return origin;
+}
+
 function setCorsHeaders(req: VercelRequest, res: VercelResponse) {
-  const origin = req.headers.origin;
+  const origin = getOriginString(req.headers.origin);
   
   // CORS spec: Cannot use wildcard (*) with credentials
   // Only set credentials header when we have a specific origin
