@@ -146,16 +146,17 @@ export default function WorkOrdersPage() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Work Orders</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold">Work Orders</h1>
           {profile?.role === 'admin' && (
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Work Order
+                  <span className="hidden xs:inline">Create Work Order</span>
+                  <span className="xs:hidden">Create</span>
                 </Button>
               </DialogTrigger>
             <DialogContent>
@@ -381,8 +382,9 @@ export default function WorkOrdersPage() {
 
         {/* Work Orders Table */}
         <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <table className="min-w-full divide-y divide-gray-200">
               <thead className="border-b bg-gray-50">
                 <tr>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Work Order #</th>
@@ -462,7 +464,8 @@ export default function WorkOrdersPage() {
                   ))
                 )}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </Card>
       </div>
