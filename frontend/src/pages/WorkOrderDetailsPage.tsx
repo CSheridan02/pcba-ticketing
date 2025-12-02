@@ -10,14 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Plus, Printer, AlertCircle, Clock } from 'lucide-react';
 
 export default function WorkOrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const _auth = useAuth(); // Auth context available if needed
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [newTicket, setNewTicket] = useState({
     description: '',
