@@ -23,12 +23,8 @@ async function bootstrap(): Promise<RequestHandler> {
     const expressAdapter = new ExpressAdapter(expressApp);
     const app = await NestFactory.create(AppModule, expressAdapter);
     
-    app.enableCors({
-      origin: true,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    });
+    // CORS is handled manually at the Vercel handler level
+    // to properly handle origin arrays and credentials with wildcards
     
     app.useGlobalPipes(new ValidationPipe({
       whitelist: true,
