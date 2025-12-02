@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Remove trailing slash from API URL if present
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 async function getAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
