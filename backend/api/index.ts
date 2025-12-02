@@ -46,20 +46,25 @@ async function bootstrap(): Promise<RequestHandler> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Get the requesting origin - use it instead of wildcard when credentials are involved
+  const origin = req.headers.origin || '*';
+  
   // Handle CORS preflight requests immediately
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(200).end();
     return;
   }
 
   // Set CORS headers for all responses
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   const requestHandler = await bootstrap();
   
