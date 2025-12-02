@@ -100,5 +100,38 @@ export class TicketsService {
     if (error) throw error;
     return { message: 'Ticket deleted successfully' };
   }
+
+  async uploadImages(files: Array<Express.Multer.File>, userId: string) {
+    const supabase = this.supabaseService.getClient();
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      // Create unique filename with user ID and timestamp
+      const timestamp = Date.now();
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `${userId}/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('ticket-images')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          cacheControl: '3600',
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('ticket-images')
+        .getPublicUrl(fileName);
+
+      uploadedUrls.push(publicUrl);
+    }
+
+    return { urls: uploadedUrls };
+  }
 }
 

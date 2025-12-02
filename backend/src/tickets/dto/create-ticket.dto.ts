@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUUID, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, IsEnum, IsOptional, IsArray } from 'class-validator';
 
 export class CreateTicketDto {
   @IsUUID()
@@ -16,5 +16,10 @@ export class CreateTicketDto {
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
 }
 

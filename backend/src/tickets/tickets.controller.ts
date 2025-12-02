@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Request, UseInterceptors, UploadedFiles, BadRequestException } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
@@ -32,6 +33,32 @@ export class TicketsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.ticketsService.remove(id);
+  }
+
+  @Post('upload')
+  @UseInterceptors(FilesInterceptor('images', 5)) // Allow up to 5 images
+  async uploadImages(
+    @UploadedFiles() files: Array<Express.Multer.File>,
+    @Request() req,
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
+    }
+
+    // Validate file types and sizes
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.mimetype)) {
+        throw new BadRequestException(`Invalid file type: ${file.mimetype}`);
+      }
+      if (file.size > maxSize) {
+        throw new BadRequestException(`File too large: ${file.originalname}`);
+      }
+    }
+
+    return this.ticketsService.uploadImages(files, req.user.userId);
   }
 }
 

@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ImageUpload } from '@/components/ImageUpload';
 import { api } from '@/lib/api';
-import { ArrowLeft, Plus, Printer, AlertCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function WorkOrderDetailsPage() {
@@ -24,6 +25,8 @@ export default function WorkOrderDetailsPage() {
     priority: 'Medium',
     area_id: '',
   });
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: workOrder, isLoading } = useQuery({
     queryKey: ['work-order', id],
@@ -55,15 +58,35 @@ export default function WorkOrderDetailsPage() {
         priority: 'Medium',
         area_id: '',
       });
+      setSelectedImages([]);
     },
   });
 
-  const handleCreateTicket = () => {
+  const handleCreateTicket = async () => {
     if (!newTicket.area_id || !newTicket.description) return;
-    createTicketMutation.mutate({
-      work_order_id: id!,
-      ...newTicket,
-    });
+    
+    setIsUploading(true);
+    try {
+      let imageUrls: string[] = [];
+      
+      // Upload images if any are selected
+      if (selectedImages.length > 0) {
+        const uploadResult = await api.uploadTicketImages(selectedImages);
+        imageUrls = uploadResult.urls;
+      }
+      
+      // Create ticket with image URLs
+      createTicketMutation.mutate({
+        work_order_id: id!,
+        ...newTicket,
+        images: imageUrls,
+      });
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert('Failed to upload images. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -268,6 +291,13 @@ export default function WorkOrderDetailsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div>
+                      <Label>Images (Optional)</Label>
+                      <ImageUpload
+                        onImagesSelected={setSelectedImages}
+                        maxFiles={5}
+                      />
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)}>
@@ -275,9 +305,9 @@ export default function WorkOrderDetailsPage() {
                     </Button>
                     <Button
                       onClick={handleCreateTicket}
-                      disabled={createTicketMutation.isPending || !newTicket.area_id || !newTicket.description}
+                      disabled={createTicketMutation.isPending || isUploading || !newTicket.area_id || !newTicket.description}
                     >
-                      {createTicketMutation.isPending ? 'Creating...' : 'Create'}
+                      {isUploading ? 'Uploading...' : createTicketMutation.isPending ? 'Creating...' : 'Create'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -309,6 +339,33 @@ export default function WorkOrderDetailsPage() {
                             </Badge>
                           </div>
                           <p className="text-gray-700">{ticket.description}</p>
+                          
+                          {/* Image thumbnails */}
+                          {ticket.images && ticket.images.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {ticket.images.map((url: string, idx: number) => (
+                                <a
+                                  key={idx}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="relative group print:hidden"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Attachment ${idx + 1}`}
+                                    className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                    <ExternalLink className="h-5 w-5 text-white" />
+                                  </div>
+                                </a>
+                              ))}
+                              <div className="hidden print:block text-xs text-gray-500">
+                                {ticket.images.length} image{ticket.images.length > 1 ? 's' : ''} attached
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 text-sm text-gray-500 ml-4">
                           <Clock className="h-4 w-4" />

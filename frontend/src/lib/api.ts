@@ -145,6 +145,30 @@ export const api = {
     return response.json();
   },
 
+  async uploadTicketImages(files: File[]) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+
+    const response = await fetch(`${API_URL}/tickets/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: formData,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) throw new Error('Failed to upload images');
+    return response.json();
+  },
+
   // Areas
   async getAreas() {
     const headers = await getAuthHeaders();
