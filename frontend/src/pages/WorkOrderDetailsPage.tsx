@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -375,7 +374,7 @@ export default function WorkOrderDetailsPage() {
                               {/* Print view - figure references */}
                               <div className="hidden print:block mt-2 text-sm text-gray-600 italic">
                                 {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
-                                {ticket.images.map((_, idx: number) => {
+                                {ticket.images.map((_url: string, idx: number) => {
                                   const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
                                   return `${ticketIndex + 1}-${idx + 1}`;
                                 }).join(', ')}

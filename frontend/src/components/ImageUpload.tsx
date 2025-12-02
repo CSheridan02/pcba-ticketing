@@ -1,4 +1,5 @@
-import { useState, useRef, DragEvent } from 'react';
+import { useState, useRef } from 'react';
+import type { DragEvent } from 'react';
 import { Upload, X, Camera, Image as ImageIcon } from 'lucide-react';
 import { Button } from './ui/button';
 
