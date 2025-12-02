@@ -4,9 +4,11 @@ import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('tickets')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class TicketsController {
   constructor(private ticketsService: TicketsService) {}
 
@@ -26,11 +28,13 @@ export class TicketsController {
   }
 
   @Patch(':id')
+  @Roles('admin')
   update(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto) {
     return this.ticketsService.update(id, updateTicketDto);
   }
 
   @Delete(':id')
+  @Roles('admin')
   remove(@Param('id') id: string) {
     return this.ticketsService.remove(id);
   }

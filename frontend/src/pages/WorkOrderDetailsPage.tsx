@@ -11,15 +11,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUpload } from '@/components/ImageUpload';
 import { api } from '@/lib/api';
-import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function WorkOrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
+  const [isEditTicketOpen, setIsEditTicketOpen] = useState(false);
+  const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [newTicket, setNewTicket] = useState({
+    description: '',
+    priority: 'Medium',
+    area_id: '',
+  });
+  const [editTicket, setEditTicket] = useState({
     description: '',
     priority: 'Medium',
     area_id: '',
@@ -61,6 +71,25 @@ export default function WorkOrderDetailsPage() {
     },
   });
 
+  const updateTicketMutation = useMutation({
+    mutationFn: ({ ticketId, data }: { ticketId: string; data: any }) => 
+      api.updateTicket(ticketId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setIsEditTicketOpen(false);
+      setSelectedTicket(null);
+    },
+  });
+
+  const deleteTicketMutation = useMutation({
+    mutationFn: (ticketId: string) => api.deleteTicket(ticketId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setIsDeleteTicketOpen(false);
+      setSelectedTicket(null);
+    },
+  });
+
   const handleCreateTicket = async () => {
     if (!newTicket.area_id || !newTicket.description) return;
     
@@ -86,6 +115,34 @@ export default function WorkOrderDetailsPage() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleEditClick = (ticket: any) => {
+    setSelectedTicket(ticket);
+    setEditTicket({
+      description: ticket.description,
+      priority: ticket.priority,
+      area_id: ticket.area_id,
+    });
+    setIsEditTicketOpen(true);
+  };
+
+  const handleUpdateTicket = () => {
+    if (!selectedTicket || !editTicket.area_id || !editTicket.description) return;
+    updateTicketMutation.mutate({
+      ticketId: selectedTicket.id,
+      data: editTicket,
+    });
+  };
+
+  const handleDeleteClick = (ticket: any) => {
+    setSelectedTicket(ticket);
+    setIsDeleteTicketOpen(true);
+  };
+
+  const handleDeleteTicket = () => {
+    if (!selectedTicket) return;
+    deleteTicketMutation.mutate(selectedTicket.id);
   };
 
   const handlePrint = () => {
@@ -320,6 +377,98 @@ export default function WorkOrderDetailsPage() {
               </Dialog>
             </div>
 
+            {/* Edit Ticket Dialog */}
+            <Dialog open={isEditTicketOpen} onOpenChange={setIsEditTicketOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Ticket</DialogTitle>
+                  <DialogDescription>
+                    Update the ticket details.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="edit-description">Description</Label>
+                    <Textarea
+                      id="edit-description"
+                      placeholder="Describe the issue..."
+                      value={editTicket.description}
+                      onChange={(e) => setEditTicket({ ...editTicket, description: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-priority">Priority</Label>
+                    <Select
+                      value={editTicket.priority}
+                      onValueChange={(value) => setEditTicket({ ...editTicket, priority: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-area">Area</Label>
+                    <Select
+                      value={editTicket.area_id}
+                      onValueChange={(value) => setEditTicket({ ...editTicket, area_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an area" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {areas.map((area: any) => (
+                          <SelectItem key={area.id} value={area.id}>
+                            {area.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditTicketOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpdateTicket}
+                    disabled={updateTicketMutation.isPending || !editTicket.area_id || !editTicket.description}
+                  >
+                    {updateTicketMutation.isPending ? 'Updating...' : 'Update'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete Ticket Dialog */}
+            <Dialog open={isDeleteTicketOpen} onOpenChange={setIsDeleteTicketOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Ticket</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this ticket? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDeleteTicketOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteTicket}
+                    disabled={deleteTicketMutation.isPending}
+                  >
+                    {deleteTicketMutation.isPending ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             {(!workOrder.tickets || workOrder.tickets.length === 0) ? (
               <div className="text-center py-12 text-gray-500">
                 <AlertCircle className="h-12 w-12 mx-auto mb-3 text-gray-400" />
@@ -382,9 +531,37 @@ export default function WorkOrderDetailsPage() {
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-gray-500 ml-4">
-                          <Clock className="h-4 w-4" />
-                          {new Date(ticket.created_at).toLocaleDateString()}
+                        <div className="flex items-center gap-2 ml-4">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <Clock className="h-4 w-4" />
+                            {new Date(ticket.created_at).toLocaleDateString()}
+                          </div>
+                          {profile?.role === 'admin' && (
+                            <div className="flex items-center gap-1 print:hidden">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClick(ticket);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(ticket);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="text-sm text-gray-600">
