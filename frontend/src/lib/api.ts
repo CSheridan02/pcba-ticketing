@@ -18,7 +18,10 @@ export const api = {
   // Auth
   async getMe() {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/auth/me`, { headers });
+    const response = await fetch(`${API_URL}/auth/me`, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch user');
     return response.json();
   },
@@ -30,21 +33,30 @@ export const api = {
     if (search) params.append('search', search);
     if (status) params.append('status', status);
     const url = `${API_URL}/work-orders${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch work orders');
     return response.json();
   },
 
   async getWorkOrder(id: string) {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/work-orders/${id}`, { headers });
+    const response = await fetch(`${API_URL}/work-orders/${id}`, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch work order');
     return response.json();
   },
 
   async getActiveWorkOrders() {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/work-orders/active`, { headers });
+    const response = await fetch(`${API_URL}/work-orders/active`, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch active work orders');
     return response.json();
   },
@@ -55,6 +67,7 @@ export const api = {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to create work order');
     return response.json();
@@ -66,6 +79,7 @@ export const api = {
       method: 'PATCH',
       headers,
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to update work order');
     return response.json();
@@ -76,6 +90,7 @@ export const api = {
     const response = await fetch(`${API_URL}/work-orders/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to delete work order');
     return response.json();
@@ -87,7 +102,10 @@ export const api = {
     const params = new URLSearchParams();
     if (workOrderId) params.append('workOrderId', workOrderId);
     const url = `${API_URL}/tickets${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch tickets');
     return response.json();
   },
@@ -98,6 +116,7 @@ export const api = {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to create ticket');
     return response.json();
@@ -109,6 +128,7 @@ export const api = {
       method: 'PATCH',
       headers,
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to update ticket');
     return response.json();
@@ -119,6 +139,7 @@ export const api = {
     const response = await fetch(`${API_URL}/tickets/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to delete ticket');
     return response.json();
@@ -127,7 +148,10 @@ export const api = {
   // Areas
   async getAreas() {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/areas`, { headers });
+    const response = await fetch(`${API_URL}/areas`, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch areas');
     return response.json();
   },
@@ -138,6 +162,7 @@ export const api = {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to create area');
     return response.json();
@@ -148,6 +173,7 @@ export const api = {
     const response = await fetch(`${API_URL}/areas/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to delete area');
     return response.json();
@@ -156,7 +182,10 @@ export const api = {
   // Users
   async getUsers() {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/users`, { headers });
+    const response = await fetch(`${API_URL}/users`, { 
+      headers,
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch users');
     return response.json();
   },
