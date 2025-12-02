@@ -142,6 +142,13 @@ export default function WorkOrderDetailsPage() {
           @page {
             margin: 1cm;
           }
+          .page-break-before {
+            page-break-before: always;
+          }
+          .break-inside-avoid {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
         }
       `}</style>
       <div className="space-y-6 print:space-y-4">
@@ -342,29 +349,38 @@ export default function WorkOrderDetailsPage() {
                           
                           {/* Image thumbnails */}
                           {ticket.images && ticket.images.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {ticket.images.map((url: string, idx: number) => (
-                                <a
-                                  key={idx}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="relative group print:hidden"
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`Attachment ${idx + 1}`}
-                                    className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
-                                    <ExternalLink className="h-5 w-5 text-white" />
-                                  </div>
-                                </a>
-                              ))}
-                              <div className="hidden print:block text-xs text-gray-500">
-                                {ticket.images.length} image{ticket.images.length > 1 ? 's' : ''} attached
+                            <>
+                              {/* Screen view - thumbnails */}
+                              <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+                                {ticket.images.map((url: string, idx: number) => (
+                                  <a
+                                    key={idx}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="relative group"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Attachment ${idx + 1}`}
+                                      className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                      <ExternalLink className="h-5 w-5 text-white" />
+                                    </div>
+                                  </a>
+                                ))}
                               </div>
-                            </div>
+                              
+                              {/* Print view - figure references */}
+                              <div className="hidden print:block mt-2 text-sm text-gray-600 italic">
+                                {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
+                                {ticket.images.map((_, idx: number) => {
+                                  const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
+                                  return `${ticketIndex + 1}-${idx + 1}`;
+                                }).join(', ')}
+                              </div>
+                            </>
                           )}
                         </div>
                         <div className="flex items-center gap-1 text-sm text-gray-500 ml-4">
@@ -378,6 +394,40 @@ export default function WorkOrderDetailsPage() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+
+            {/* Figures Section - Only visible when printing */}
+            {workOrder.tickets?.some((t: any) => t.images && t.images.length > 0) && (
+              <div className="hidden print:block mt-12 pt-8 border-t-2 border-gray-300 page-break-before">
+                <h2 className="text-xl font-bold mb-6">Figures</h2>
+                <div className="space-y-8">
+                  {workOrder.tickets.map((ticket: any, ticketIndex: number) => 
+                    ticket.images && ticket.images.length > 0 ? (
+                      <div key={ticket.id} className="space-y-4">
+                        <h3 className="font-semibold text-gray-700">
+                          Ticket {ticket.ticket_number}
+                        </h3>
+                        <div className="grid grid-cols-1 gap-6">
+                          {ticket.images.map((url: string, imageIndex: number) => (
+                            <div key={imageIndex} className="break-inside-avoid">
+                              <div className="border border-gray-300 p-4 bg-white">
+                                <img
+                                  src={url}
+                                  alt={`Figure ${ticketIndex + 1}-${imageIndex + 1}`}
+                                  className="w-full max-h-96 object-contain mx-auto"
+                                />
+                                <p className="text-center text-sm font-medium mt-3 text-gray-700">
+                                  Figure {ticketIndex + 1}-{imageIndex + 1}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
