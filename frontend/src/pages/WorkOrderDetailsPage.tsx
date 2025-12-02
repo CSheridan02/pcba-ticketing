@@ -480,92 +480,101 @@ export default function WorkOrderDetailsPage() {
                 {workOrder.tickets.map((ticket: any) => (
                   <Card key={ticket.id} className="border-l-4 border-l-primary print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4">
                     <CardContent className="p-4 print:p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-mono text-sm font-medium">
-                              {ticket.ticket_number}
-                            </span>
-                            <Badge className={getPriorityColor(ticket.priority)}>
-                              {ticket.priority}
-                            </Badge>
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                              {ticket.area?.name}
-                            </Badge>
-                          </div>
-                          <p className="text-gray-700">{ticket.description}</p>
-                          
-                          {/* Image thumbnails */}
-                          {ticket.images && ticket.images.length > 0 && (
-                            <>
-                              {/* Screen view - thumbnails */}
-                              <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-                                {ticket.images.map((url: string, idx: number) => (
-                                  <a
-                                    key={idx}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="relative group"
-                                  >
-                                    <img
-                                      src={url}
-                                      alt={`Attachment ${idx + 1}`}
-                                      className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
-                                    />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
-                                      <ExternalLink className="h-5 w-5 text-white" />
-                                    </div>
-                                  </a>
-                                ))}
-                              </div>
-                              
-                              {/* Print view - figure references */}
-                              <div className="hidden print:block mt-2 text-sm text-gray-600 italic">
-                                {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
-                                {ticket.images.map((_url: string, idx: number) => {
-                                  const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
-                                  return `${ticketIndex + 1}-${idx + 1}`;
-                                }).join(', ')}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                            <Clock className="h-4 w-4" />
-                            {new Date(ticket.created_at).toLocaleDateString()}
-                          </div>
-                          {profile?.role === 'admin' && (
-                            <div className="flex items-center gap-1 print:hidden">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditClick(ticket);
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteClick(ticket);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                      <div className="space-y-3">
+                        {/* Header with ticket info and badges */}
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center flex-wrap gap-2 mb-2">
+                              <span className="font-mono text-sm font-medium">
+                                {ticket.ticket_number}
+                              </span>
+                              <Badge className={getPriorityColor(ticket.priority)}>
+                                {ticket.priority}
+                              </Badge>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                {ticket.area?.name}
+                              </Badge>
                             </div>
-                          )}
+                          </div>
+                          
+                          {/* Date and admin actions */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Clock className="h-4 w-4" />
+                              <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {profile?.role === 'admin' && (
+                              <div className="flex items-center gap-1 print:hidden">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditClick(ticket);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(ticket);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+
+                        {/* Description */}
+                        <p className="text-gray-700">{ticket.description}</p>
+                          
+                        {/* Image thumbnails */}
+                        {ticket.images && ticket.images.length > 0 && (
+                          <>
+                            {/* Screen view - thumbnails */}
+                            <div className="flex flex-wrap gap-2 print:hidden">
+                              {ticket.images.map((url: string, idx: number) => (
+                                <a
+                                  key={idx}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="relative group"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Attachment ${idx + 1}`}
+                                    className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                    <ExternalLink className="h-5 w-5 text-white" />
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                            
+                            {/* Print view - figure references */}
+                            <div className="hidden print:block text-sm text-gray-600 italic">
+                              {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
+                              {ticket.images.map((_url: string, idx: number) => {
+                                const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
+                                return `${ticketIndex + 1}-${idx + 1}`;
+                              }).join(', ')}
+                            </div>
+                          </>
+                        )}
+
+                        {/* Submitted by */}
+                        <div className="text-sm text-gray-600">
+                          Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
