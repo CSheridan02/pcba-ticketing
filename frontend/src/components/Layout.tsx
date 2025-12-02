@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { FileText, Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
+import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,9 +26,9 @@ export function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-primary" />
-                <span className="text-lg font-semibold">Work Order Ticketing System</span>
+              <div className="flex items-center gap-3">
+                <img src={AAONLogo} alt="AAON Logo" className="h-8" />
+                <span className="text-lg font-semibold">Work Order Ticketing</span>
               </div>
               <nav className="flex gap-1">
                 <Link

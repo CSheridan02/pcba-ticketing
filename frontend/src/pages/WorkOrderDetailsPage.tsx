@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { ArrowLeft, Plus, Printer, AlertCircle, Clock } from 'lucide-react';
+import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function WorkOrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -191,6 +192,12 @@ export default function WorkOrderDetailsPage() {
         <div id="tickets-print-section">
           {/* Print Header - Only visible when printing */}
           <div className="hidden print:block mb-8 px-4">
+            <div className="flex items-center justify-between mb-6">
+              <img src={AAONLogo} alt="AAON Logo" className="h-12" />
+              <div className="text-right text-sm text-gray-600">
+                {new Date().toLocaleDateString()}
+              </div>
+            </div>
             <h1 className="text-2xl font-bold mb-2">Work Order: {workOrder.work_order_number}</h1>
             <p className="text-gray-600">ASM #: {workOrder.asm_number}</p>
             <p className="text-gray-600 mb-4">{workOrder.description}</p>
