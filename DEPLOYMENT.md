@@ -1,182 +1,179 @@
-# Deployment Guide
+# Deployment Guide - Vercel
 
-This guide covers deploying the PCBA Ticketing System to production.
-
-## Architecture
-
-- **Frontend**: Vercel (React/Vite)
-- **Backend**: Railway (NestJS) - or Render/Fly.io
-- **Database**: Supabase (already hosted)
+Deploy both the frontend and backend to Vercel for free!
 
 ---
 
-## Step 1: Deploy Backend to Railway
+## Prerequisites
 
-Railway is the easiest option for NestJS backends.
-
-### 1.1 Create Railway Account
-1. Go to [railway.app](https://railway.app)
-2. Sign up with GitHub
-
-### 1.2 Create New Project
-1. Click "New Project"
-2. Select "Deploy from GitHub repo"
-3. Select your repository
-4. **Important**: Set the root directory to `backend`
-
-### 1.3 Configure Environment Variables
-In Railway dashboard, add these environment variables:
-
-```
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
-PORT=3000
-```
-
-### 1.4 Configure Build Settings
-Railway should auto-detect NestJS, but if needed:
-- **Build Command**: `npm install && npm run build`
-- **Start Command**: `npm run start:prod`
-
-### 1.5 Get Your Backend URL
-After deployment, Railway will give you a URL like:
-`https://your-app-production.up.railway.app`
-
-**Save this URL** - you'll need it for the frontend.
+1. GitHub account with your code pushed
+2. Vercel account (free at [vercel.com](https://vercel.com))
+3. Supabase project already set up
 
 ---
 
-## Step 2: Deploy Frontend to Vercel
+## Step 1: Push Code to GitHub
 
-### 2.1 Create Vercel Account
-1. Go to [vercel.com](https://vercel.com)
-2. Sign up with GitHub
+If you haven't already:
 
-### 2.2 Import Project
-1. Click "Add New" → "Project"
-2. Import your GitHub repository
-3. **Important**: Set the root directory to `frontend`
+```bash
+# Create a repo on GitHub, then:
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git push -u origin main
+```
 
-### 2.3 Configure Build Settings
-Vercel should auto-detect Vite, but verify:
+---
+
+## Step 2: Deploy Backend API to Vercel
+
+### 2.1 Create New Project
+1. Go to [vercel.com](https://vercel.com) → Sign in with GitHub
+2. Click **"Add New"** → **"Project"**
+3. Import your repository
+
+### 2.2 Configure Project Settings
+- **Project Name**: `pcba-api` (or your preferred name)
+- **Framework Preset**: Other
+- **Root Directory**: Click "Edit" → enter `backend`
+
+### 2.3 Add Environment Variables
+Click "Environment Variables" and add:
+
+| Name | Value |
+|------|-------|
+| `SUPABASE_URL` | `https://your-project.supabase.co` |
+| `SUPABASE_ANON_KEY` | Your Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key |
+| `SUPABASE_JWT_SECRET` | Your Supabase JWT secret |
+
+### 2.4 Deploy
+Click **"Deploy"** and wait for the build.
+
+### 2.5 Copy Your API URL
+After deployment, copy your API URL. It will look like:
+```
+https://pcba-api.vercel.app
+```
+
+---
+
+## Step 3: Deploy Frontend to Vercel
+
+### 3.1 Create Another New Project
+1. Go to Vercel Dashboard
+2. Click **"Add New"** → **"Project"**
+3. Import the **same repository** again
+
+### 3.2 Configure Project Settings
+- **Project Name**: `pcba-tickets` (or your preferred name)
 - **Framework Preset**: Vite
-- **Root Directory**: `frontend`
-- **Build Command**: `npm run build`
-- **Output Directory**: `dist`
+- **Root Directory**: Click "Edit" → enter `frontend`
 
-### 2.4 Configure Environment Variables
-Add these environment variables in Vercel:
+### 3.3 Add Environment Variables
+| Name | Value |
+|------|-------|
+| `VITE_SUPABASE_URL` | `https://your-project.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key |
+| `VITE_API_URL` | Your backend URL from Step 2.5 (e.g., `https://pcba-api.vercel.app`) |
 
+### 3.4 Deploy
+Click **"Deploy"** and wait for the build.
+
+---
+
+## Step 4: Update Supabase Settings
+
+### 4.1 Add Redirect URLs
+1. Go to **Supabase Dashboard** → **Authentication** → **URL Configuration**
+2. Add to "Redirect URLs":
+   - `https://your-frontend-url.vercel.app`
+   - `https://your-frontend-url.vercel.app/**`
+
+### 4.2 Add Site URL
+Set the "Site URL" to your frontend URL:
 ```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=https://your-backend.up.railway.app
+https://your-frontend-url.vercel.app
 ```
 
-**Replace** `https://your-backend.up.railway.app` with your actual Railway backend URL from Step 1.
-
-### 2.5 Deploy
-Click "Deploy" and wait for the build to complete.
-
 ---
 
-## Step 3: Update Supabase Settings
+## ✅ Verification Checklist
 
-### 3.1 Add Redirect URLs
-1. Go to Supabase Dashboard → Authentication → URL Configuration
-2. Add your Vercel URL to "Redirect URLs":
-   - `https://your-app.vercel.app`
-   - `https://your-app.vercel.app/**`
+### Test Backend
+Visit: `https://your-api-url.vercel.app`
+- Should return: `"Hello World!"`
 
-### 3.2 Update CORS (if needed)
-If you get CORS errors, add your domains to the allowed origins in your backend.
-
----
-
-## Alternative: Deploy Backend to Render
-
-If you prefer Render over Railway:
-
-### Create Web Service
-1. Go to [render.com](https://render.com)
-2. New → Web Service
-3. Connect your GitHub repo
-4. Configure:
-   - **Root Directory**: `backend`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm run start:prod`
-   - **Environment**: Node
-
-### Add Environment Variables
-Same as Railway (Step 1.3)
-
----
-
-## Verifying Deployment
-
-### Check Backend
-Visit: `https://your-backend-url.railway.app`
-Should return: `"Hello World!"`
-
-### Check Frontend
-Visit: `https://your-app.vercel.app`
-Should show the login page.
-
-### Test Login
-1. Sign up with a new account
-2. Verify you can create work orders (as admin)
-3. Test ticket creation
+### Test Frontend
+Visit: `https://your-frontend-url.vercel.app`
+- Should show login page
+- Try signing up/logging in
+- Create a work order (as admin)
+- Create a ticket
 
 ---
 
 ## Troubleshooting
 
-### "Cannot connect to backend"
-- Verify `VITE_API_URL` is set correctly in Vercel
-- Check Railway/Render logs for errors
-- Ensure backend is running
+### "Failed to fetch" or Network errors
+1. Check that `VITE_API_URL` is correct in frontend env vars
+2. Make sure it doesn't have a trailing slash
+3. Redeploy after changing env vars
+
+### "Invalid JWT" or Auth errors
+1. Verify `SUPABASE_JWT_SECRET` in backend matches your Supabase project
+2. Check that frontend `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct
 
 ### "CORS error"
-Add this to your backend `main.ts` if not already present:
-```typescript
-app.enableCors({
-  origin: ['https://your-app.vercel.app', 'http://localhost:5173'],
-  credentials: true,
-});
+The backend is configured to allow all origins. If issues persist:
+1. Check browser console for the exact error
+2. Make sure the API URL doesn't have a trailing slash
+
+### Build fails
+1. Check Vercel build logs
+2. Ensure root directory is set correctly (`backend` or `frontend`)
+3. Try deploying again - sometimes first deploy has caching issues
+
+---
+
+## Custom Domains (Optional)
+
+For each project in Vercel:
+1. Go to **Project Settings** → **Domains**
+2. Add your custom domain
+3. Follow DNS configuration instructions
+
+Example setup:
+- `api.yourdomain.com` → Backend
+- `tickets.yourdomain.com` → Frontend
+
+---
+
+## Cost Summary
+
+| Service | Cost |
+|---------|------|
+| Vercel (Frontend) | Free |
+| Vercel (Backend) | Free |
+| Supabase | Free tier |
+| **Total** | **$0/month** 🎉 |
+
+Note: Free tier limits apply. For production apps with high traffic, you may need paid plans.
+
+---
+
+## Environment Variables Reference
+
+### Backend (`backend` directory)
+```env
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
-### "Auth not working"
-- Check Supabase redirect URLs include your Vercel domain
-- Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct
-
-### "Database errors"
-- Ensure `SUPABASE_SERVICE_ROLE_KEY` is set in backend
-- Check Supabase RLS policies are correct
-
----
-
-## Custom Domain (Optional)
-
-### Vercel
-1. Go to Project Settings → Domains
-2. Add your domain
-3. Update DNS as instructed
-
-### Railway
-1. Go to Service Settings → Networking → Domains
-2. Add your domain
-3. Update DNS as instructed
-
----
-
-## Cost Estimates
-
-- **Vercel**: Free tier is generous for small apps
-- **Railway**: $5/month for hobby plan (includes $5 credit)
-- **Render**: Free tier available (spins down after inactivity)
-- **Supabase**: Free tier includes 500MB database
-
-Total: **$0-10/month** for a small production app
-
+### Frontend (`frontend` directory)
+```env
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_API_URL=https://your-backend.vercel.app
+```
