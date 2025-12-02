@@ -17,7 +17,7 @@ export default function WorkOrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const _auth = useAuth(); // Auth context available if needed
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [newTicket, setNewTicket] = useState({
     description: '',
