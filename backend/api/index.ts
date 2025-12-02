@@ -45,26 +45,35 @@ async function bootstrap(): Promise<RequestHandler> {
   return bootstrapPromise;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Get the requesting origin - use it instead of wildcard when credentials are involved
-  const origin = req.headers.origin || '*';
+function setCorsHeaders(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers.origin;
   
+  // CORS spec: Cannot use wildcard (*) with credentials
+  // Only set credentials header when we have a specific origin
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    // No origin header (e.g., same-origin, server-to-server, curl)
+    // Use wildcard but without credentials
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight requests immediately
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    setCorsHeaders(req, res);
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(200).end();
     return;
   }
 
   // Set CORS headers for all responses
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  setCorsHeaders(req, res);
 
   const requestHandler = await bootstrap();
   
@@ -79,4 +88,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.on('error', reject);
   });
 }
-
