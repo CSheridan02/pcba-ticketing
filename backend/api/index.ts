@@ -6,6 +6,11 @@ import express, { RequestHandler } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const expressApp = express();
+
+// Configure body parsing with increased limits for file uploads
+expressApp.use(express.json({ limit: '30mb' }));
+expressApp.use(express.urlencoded({ extended: true, limit: '30mb' }));
+
 let appHandler: RequestHandler | null = null;
 let bootstrapPromise: Promise<RequestHandler> | null = null;
 

@@ -3,7 +3,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: true,
+    rawBody: true,
+  });
   
   // Enable CORS - allow localhost and production domains
   const allowedOrigins = [
@@ -26,6 +29,14 @@ async function bootstrap() {
     whitelist: true,
     transform: true,
   }));
+  
+  // Increase body size limit for file uploads (30MB to handle multiple 5MB files)
+  app.use((req: any, res: any, next: any) => {
+    if (req.url === '/tickets/upload') {
+      req.setTimeout(120000); // 2 minute timeout for uploads
+    }
+    next();
+  });
   
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');

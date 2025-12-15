@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import { ImageUpload } from '@/components/ImageUpload';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
@@ -36,6 +37,7 @@ export default function WorkOrderDetailsPage() {
   });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const { data: workOrder, isLoading } = useQuery({
     queryKey: ['work-order', id],
@@ -99,8 +101,16 @@ export default function WorkOrderDetailsPage() {
       
       // Upload images if any are selected
       if (selectedImages.length > 0) {
-        const uploadResult = await api.uploadTicketImages(selectedImages);
-        imageUrls = uploadResult.urls;
+        setUploadProgress(0);
+        const uploadResult: any = await api.uploadTicketImages(selectedImages, (progress) => {
+          setUploadProgress(progress);
+        });
+        imageUrls = uploadResult.urls || [];
+        
+        // Show warning if some images failed
+        if (uploadResult.errors && uploadResult.errors.length > 0) {
+          alert(`Warning: ${uploadResult.message}\n\nErrors:\n${uploadResult.errors.join('\n')}`);
+        }
       }
       
       // Create ticket with image URLs
@@ -109,11 +119,12 @@ export default function WorkOrderDetailsPage() {
         ...newTicket,
         images: imageUrls,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading images:', error);
-      alert('Failed to upload images. Please try again.');
+      alert(`Failed to upload images: ${error.message || 'Please try again.'}`);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -361,8 +372,20 @@ export default function WorkOrderDetailsPage() {
                       />
                     </div>
                   </div>
+                  
+                  {/* Upload Progress */}
+                  {isUploading && (
+                    <div className="space-y-2 pt-2">
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Uploading images...</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-2" />
+                    </div>
+                  )}
+                  
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)}>
+                    <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)} disabled={isUploading}>
                       Cancel
                     </Button>
                     <Button

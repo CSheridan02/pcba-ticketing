@@ -142,34 +142,64 @@ export class TicketsService {
   async uploadImages(files: Array<Express.Multer.File>, userId: string) {
     const supabase = this.supabaseService.getClient();
     const uploadedUrls: string[] = [];
+    const errors: string[] = [];
 
-    for (const file of files) {
-      // Create unique filename with user ID and timestamp
-      const timestamp = Date.now();
-      const fileExt = file.originalname.split('.').pop();
-      const fileName = `${userId}/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      try {
+        // Create unique filename with user ID and timestamp
+        const timestamp = Date.now();
+        const fileExt = file.originalname.split('.').pop();
+        const fileName = `${userId}/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-      // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('ticket-images')
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
-          cacheControl: '3600',
-        });
+        // Upload to Supabase Storage with timeout
+        const { data, error } = await Promise.race([
+          supabase.storage
+            .from('ticket-images')
+            .upload(fileName, file.buffer, {
+              contentType: file.mimetype,
+              cacheControl: '3600',
+              upsert: false,
+            }),
+          new Promise<{ data: null; error: any }>((_, reject) =>
+            setTimeout(() => reject(new Error('Upload timeout')), 60000)
+          ),
+        ]);
 
-      if (error) {
-        throw error;
+        if (error) {
+          console.error(`Failed to upload ${file.originalname}:`, error);
+          errors.push(`${file.originalname}: ${error.message}`);
+          continue;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('ticket-images')
+          .getPublicUrl(fileName);
+
+        uploadedUrls.push(publicUrl);
+      } catch (error) {
+        console.error(`Error uploading ${file.originalname}:`, error);
+        errors.push(`${file.originalname}: ${error.message || 'Unknown error'}`);
       }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('ticket-images')
-        .getPublicUrl(fileName);
-
-      uploadedUrls.push(publicUrl);
     }
 
-    return { urls: uploadedUrls };
+    // If some files uploaded successfully, return those
+    if (uploadedUrls.length > 0) {
+      return {
+        urls: uploadedUrls,
+        errors: errors.length > 0 ? errors : undefined,
+        message: errors.length > 0 ? `${uploadedUrls.length} of ${files.length} files uploaded successfully` : undefined,
+      };
+    }
+
+    // If no files uploaded successfully, throw error
+    if (errors.length > 0) {
+      throw new Error(`Failed to upload images: ${errors.join('; ')}`);
+    }
+
+    throw new Error('Failed to upload images');
   }
 }
 
