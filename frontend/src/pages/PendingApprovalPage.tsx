@@ -1,17 +1,44 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, Shield } from 'lucide-react';
+import { Clock, Shield, RefreshCw } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function PendingApprovalPage() {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const [checking, setChecking] = useState(false);
+
+  // Automatically redirect if access is granted
+  useEffect(() => {
+    if (profile?.access_granted) {
+      navigate('/work-orders', { replace: true });
+    }
+  }, [profile, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/login', { replace: true });
+  };
+
+  const handleCheckStatus = async () => {
+    setChecking(true);
+    try {
+      await refreshProfile();
+      // Give a small delay for the profile to update
+      setTimeout(() => {
+        // If access has been granted, redirect to work orders
+        if (profile?.access_granted) {
+          navigate('/work-orders', { replace: true });
+        }
+        setChecking(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error checking status:', error);
+      setChecking(false);
+    }
   };
 
   return (
@@ -53,6 +80,24 @@ export default function PendingApprovalPage() {
             <div className="text-sm text-gray-600 text-center">
               <p>Please contact your system administrator if you need immediate access.</p>
             </div>
+
+            <Button 
+              className="w-full" 
+              onClick={handleCheckStatus}
+              disabled={checking}
+            >
+              {checking ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Checking Status...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Check Access Status
+                </>
+              )}
+            </Button>
 
             <Button 
               variant="outline" 
