@@ -72,24 +72,27 @@ export class TicketsService {
     return data;
   }
 
-  async update(id: string, updateTicketDto: UpdateTicketDto, userId: string) {
+  async update(id: string, updateTicketDto: UpdateTicketDto, userId: string, userRole: string) {
     const supabase = this.supabaseService.getClient();
     
-    // First, check if the ticket exists and get the owner
-    const { data: ticket, error: fetchError } = await supabase
-      .from('tickets')
-      .select('submitted_by')
-      .eq('id', id)
-      .single();
+    // Admins can edit any ticket, operators can only edit their own
+    if (userRole !== 'admin') {
+      // First, check if the ticket exists and get the owner
+      const { data: ticket, error: fetchError } = await supabase
+        .from('tickets')
+        .select('submitted_by')
+        .eq('id', id)
+        .single();
 
-    if (fetchError) throw new NotFoundException('Ticket not found');
-    
-    // Check if the user is the owner of the ticket
-    if (ticket.submitted_by !== userId) {
-      throw new ForbiddenException('You can only edit your own tickets');
+      if (fetchError) throw new NotFoundException('Ticket not found');
+      
+      // Check if the user is the owner of the ticket
+      if (ticket.submitted_by !== userId) {
+        throw new ForbiddenException('You can only edit your own tickets');
+      }
     }
 
-    // Proceed with update
+    // Proceed with update (admins skip ownership check)
     const { data, error } = await supabase
       .from('tickets')
       .update(updateTicketDto)
@@ -106,24 +109,27 @@ export class TicketsService {
     return data;
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, userRole: string) {
     const supabase = this.supabaseService.getClient();
     
-    // First, check if the ticket exists and get the owner
-    const { data: ticket, error: fetchError } = await supabase
-      .from('tickets')
-      .select('submitted_by')
-      .eq('id', id)
-      .single();
+    // Admins can delete any ticket, operators can only delete their own
+    if (userRole !== 'admin') {
+      // First, check if the ticket exists and get the owner
+      const { data: ticket, error: fetchError } = await supabase
+        .from('tickets')
+        .select('submitted_by')
+        .eq('id', id)
+        .single();
 
-    if (fetchError) throw new NotFoundException('Ticket not found');
-    
-    // Check if the user is the owner of the ticket
-    if (ticket.submitted_by !== userId) {
-      throw new ForbiddenException('You can only delete your own tickets');
+      if (fetchError) throw new NotFoundException('Ticket not found');
+      
+      // Check if the user is the owner of the ticket
+      if (ticket.submitted_by !== userId) {
+        throw new ForbiddenException('You can only delete your own tickets');
+      }
     }
 
-    // Proceed with delete
+    // Proceed with delete (admins skip ownership check)
     const { error } = await supabase
       .from('tickets')
       .delete()

@@ -501,8 +501,8 @@ export default function WorkOrderDetailsPage() {
                               <Clock className="h-4 w-4" />
                               <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
                             </div>
-                            {/* Edit and delete buttons - only for ticket owner */}
-                            {profile?.id === ticket.submitted_by && (
+                            {/* Edit and delete buttons - admins can edit any ticket, operators can only edit their own */}
+                            {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
                               <div className="flex items-center gap-1 print:hidden">
                                 <Button
                                   variant="ghost"
