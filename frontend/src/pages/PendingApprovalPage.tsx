@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, Shield } from 'lucide-react';
@@ -6,6 +7,12 @@ import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function PendingApprovalPage() {
   const { signOut, profile } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -50,10 +57,16 @@ export default function PendingApprovalPage() {
             <Button 
               variant="outline" 
               className="w-full" 
-              onClick={() => signOut()}
+              onClick={handleSignOut}
             >
               Sign Out
             </Button>
+            <div className="text-xs text-gray-500 text-center">
+              Or{' '}
+              <a href="/login" className="text-blue-600 hover:underline">
+                click here to return to login
+              </a>
+            </div>
           </div>
 
           <div className="text-xs text-gray-500 text-center">
