@@ -104,13 +104,62 @@
     border: 1px solid #e5e7eb !important;
   }
 
-  /* Adjust page breaks */
+  /* Adjust page breaks - prevent tickets from being cut off */
   .card, .ticket-card {
-    page-break-inside: avoid;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
+  /* Prevent any print element from breaking inside */
+  .print\:page-break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+  }
+
+  /* Ensure ticket cards and their content stay together */
+  [class*="border-l-4"] {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: block !important;
+  }
+
+  /* Keep card content together */
+  .p-4, .print\:p-5 {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Avoid breaking after headings */
   h1, h2, h3 {
-    page-break-after: avoid;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Better spacing between tickets to help with page breaks */
+  .space-y-4 > *, .print\:space-y-6 > * {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Force page break before photo documentation */
+  .print\:break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Prevent page break after headings */
+  .print\:break-after-avoid {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Keep image documentation together */
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

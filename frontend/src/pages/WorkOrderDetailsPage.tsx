@@ -586,8 +586,8 @@ export default function WorkOrderDetailsPage() {
 
             {/* Photo Documentation Section - Only visible when printing */}
             {workOrder.tickets?.some((t: any) => t.images && t.images.length > 0) && (
-              <div className="hidden print:block mt-12 pt-8 border-t-2 border-gray-300 page-break-before">
-                <h2 className="text-xl font-bold mb-6">Photo Documentation</h2>
+              <div className="hidden print:block mt-12 pt-8 border-t-2 border-gray-300 print:break-before-page">
+                <h2 className="text-xl font-bold mb-6 print:break-after-avoid">Photo Documentation</h2>
                 <div className="space-y-8">
                   {workOrder.tickets.map((ticket: any, ticketIndex: number) => 
                     ticket.images && ticket.images.length > 0 ? (
