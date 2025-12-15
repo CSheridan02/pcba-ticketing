@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUpload } from '@/components/ImageUpload';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
 import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
@@ -311,11 +311,10 @@ export default function WorkOrderDetailsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
+                      <RichTextEditor
+                        content={newTicket.description}
+                        onChange={(html) => setNewTicket({ ...newTicket, description: html })}
                         placeholder="Describe the issue..."
-                        value={newTicket.description}
-                        onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                       />
                     </div>
                     <div>
@@ -387,11 +386,10 @@ export default function WorkOrderDetailsPage() {
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="edit-description">Description</Label>
-                    <Textarea
-                      id="edit-description"
+                    <RichTextEditor
+                      content={editTicket.description}
+                      onChange={(html) => setEditTicket({ ...editTicket, description: html })}
                       placeholder="Describe the issue..."
-                      value={editTicket.description}
-                      onChange={(e) => setEditTicket({ ...editTicket, description: e.target.value })}
                     />
                   </div>
                   <div>
@@ -530,7 +528,10 @@ export default function WorkOrderDetailsPage() {
                         </div>
 
                         {/* Description */}
-                        <p className="text-gray-700">{ticket.description}</p>
+                        <div 
+                          className="text-gray-700 ticket-description" 
+                          dangerouslySetInnerHTML={{ __html: ticket.description }}
+                        />
                           
                         {/* Image thumbnails */}
                         {ticket.images && ticket.images.length > 0 && (
