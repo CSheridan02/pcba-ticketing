@@ -28,13 +28,13 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto) {
-    return this.ticketsService.update(id, updateTicketDto);
+  update(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto, @Request() req) {
+    return this.ticketsService.update(id, updateTicketDto, req.user.userId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.ticketsService.remove(id);
+  remove(@Param('id') id: string, @Request() req) {
+    return this.ticketsService.remove(id, req.user.userId);
   }
 
   @Post('upload')

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
@@ -72,8 +72,24 @@ export class TicketsService {
     return data;
   }
 
-  async update(id: string, updateTicketDto: UpdateTicketDto) {
+  async update(id: string, updateTicketDto: UpdateTicketDto, userId: string) {
     const supabase = this.supabaseService.getClient();
+    
+    // First, check if the ticket exists and get the owner
+    const { data: ticket, error: fetchError } = await supabase
+      .from('tickets')
+      .select('submitted_by')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw new NotFoundException('Ticket not found');
+    
+    // Check if the user is the owner of the ticket
+    if (ticket.submitted_by !== userId) {
+      throw new ForbiddenException('You can only edit your own tickets');
+    }
+
+    // Proceed with update
     const { data, error } = await supabase
       .from('tickets')
       .update(updateTicketDto)
@@ -90,8 +106,24 @@ export class TicketsService {
     return data;
   }
 
-  async remove(id: string) {
+  async remove(id: string, userId: string) {
     const supabase = this.supabaseService.getClient();
+    
+    // First, check if the ticket exists and get the owner
+    const { data: ticket, error: fetchError } = await supabase
+      .from('tickets')
+      .select('submitted_by')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw new NotFoundException('Ticket not found');
+    
+    // Check if the user is the owner of the ticket
+    if (ticket.submitted_by !== userId) {
+      throw new ForbiddenException('You can only delete your own tickets');
+    }
+
+    // Proceed with delete
     const { error } = await supabase
       .from('tickets')
       .delete()
