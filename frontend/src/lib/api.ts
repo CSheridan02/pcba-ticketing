@@ -213,5 +213,17 @@ export const api = {
     if (!response.ok) throw new Error('Failed to fetch users');
     return response.json();
   },
+
+  async updateUserRole(userId: string, role: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/users/${userId}/role`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ role }),
+    });
+    if (!response.ok) throw new Error('Failed to update user role');
+    return response.json();
+  },
 };
 

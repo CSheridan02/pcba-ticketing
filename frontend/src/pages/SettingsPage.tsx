@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { Plus, Trash2, Settings as SettingsIcon } from 'lucide-react';
+import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User } from 'lucide-react';
 
 export default function SettingsPage() {
   const [isAddAreaOpen, setIsAddAreaOpen] = useState(false);
@@ -17,6 +19,11 @@ export default function SettingsPage() {
   const { data: areas = [], isLoading } = useQuery({
     queryKey: ['areas'],
     queryFn: () => api.getAreas(),
+  });
+
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.getUsers(),
   });
 
   const createAreaMutation = useMutation({
@@ -35,6 +42,14 @@ export default function SettingsPage() {
     },
   });
 
+  const updateUserRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) =>
+      api.updateUserRole(userId, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
   const handleAddArea = () => {
     if (!newAreaName.trim()) return;
     createAreaMutation.mutate({ name: newAreaName.trim() });
@@ -46,6 +61,13 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRoleChange = (userId: string, newRole: string, userName: string) => {
+    const roleLabel = newRole === 'admin' ? 'Administrator' : 'Line Operator';
+    if (window.confirm(`Are you sure you want to change ${userName}'s role to ${roleLabel}?`)) {
+      updateUserRoleMutation.mutate({ userId, role: newRole });
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -54,6 +76,80 @@ export default function SettingsPage() {
           <SettingsIcon className="h-8 w-8 text-gray-700" />
           <h1 className="text-3xl font-bold">Settings</h1>
         </div>
+
+        {/* User Management */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              <CardTitle>User Management</CardTitle>
+            </div>
+            <CardDescription>
+              Manage user roles and permissions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingUsers ? (
+              <div className="text-center py-4 text-gray-500">Loading users...</div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No users found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {users.map((user: any) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                        user.role === 'admin' ? 'bg-blue-100' : 'bg-gray-100'
+                      }`}>
+                        {user.role === 'admin' ? (
+                          <Shield className="h-5 w-5 text-blue-600" />
+                        ) : (
+                          <User className="h-5 w-5 text-gray-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{user.full_name}</div>
+                        <div className="text-sm text-gray-500 truncate">{user.email || 'No email'}</div>
+                      </div>
+                      <Badge
+                        variant={user.role === 'admin' ? 'default' : 'secondary'}
+                        className={user.role === 'admin' ? 'bg-blue-600' : ''}
+                      >
+                        {user.role === 'admin' ? 'Administrator' : 'Line Operator'}
+                      </Badge>
+                    </div>
+                    <div className="ml-4">
+                      <Select
+                        value={user.role}
+                        onValueChange={(value) => handleRoleChange(user.id, value, user.full_name)}
+                        disabled={updateUserRoleMutation.isPending}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="line_operator">Line Operator</SelectItem>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-900">
+                <strong>Admin Note:</strong> Administrators have full access to create/edit/delete work orders and tickets, and can manage settings. Line Operators can create tickets and edit their own tickets only.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Area Management */}
         <Card>
