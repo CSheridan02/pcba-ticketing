@@ -9,11 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User } from 'lucide-react';
+import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User, Pencil } from 'lucide-react';
 
 export default function SettingsPage() {
   const [isAddAreaOpen, setIsAddAreaOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editUserName, setEditUserName] = useState('');
   const queryClient = useQueryClient();
 
   const { data: areas = [], isLoading } = useQuery({
@@ -50,6 +53,24 @@ export default function SettingsPage() {
     },
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: { full_name: string } }) =>
+      api.updateUser(userId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsEditUserOpen(false);
+      setEditingUser(null);
+      setEditUserName('');
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: api.deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
   const handleAddArea = () => {
     if (!newAreaName.trim()) return;
     createAreaMutation.mutate({ name: newAreaName.trim() });
@@ -65,6 +86,26 @@ export default function SettingsPage() {
     const roleLabel = newRole === 'admin' ? 'Administrator' : 'Line Operator';
     if (window.confirm(`Are you sure you want to change ${userName}'s role to ${roleLabel}?`)) {
       updateUserRoleMutation.mutate({ userId, role: newRole });
+    }
+  };
+
+  const handleEditUserClick = (user: any) => {
+    setEditingUser(user);
+    setEditUserName(user.full_name);
+    setIsEditUserOpen(true);
+  };
+
+  const handleUpdateUser = () => {
+    if (!editUserName.trim() || !editingUser) return;
+    updateUserMutation.mutate({
+      userId: editingUser.id,
+      data: { full_name: editUserName.trim() },
+    });
+  };
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (window.confirm(`Are you sure you want to delete ${userName}? This action cannot be undone.`)) {
+      deleteUserMutation.mutate(userId);
     }
   };
 
@@ -123,7 +164,7 @@ export default function SettingsPage() {
                         {user.role === 'admin' ? 'Administrator' : 'Line Operator'}
                       </Badge>
                     </div>
-                    <div className="ml-4">
+                    <div className="flex items-center gap-2 ml-4">
                       <Select
                         value={user.role}
                         onValueChange={(value) => handleRoleChange(user.id, value, user.full_name)}
@@ -137,6 +178,22 @@ export default function SettingsPage() {
                           <SelectItem value="admin">Administrator</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditUserClick(user)}
+                        disabled={updateUserMutation.isPending}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteUser(user.id, user.full_name)}
+                        disabled={deleteUserMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -150,6 +207,45 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Update user information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="editUserName">Full Name</Label>
+                <Input
+                  id="editUserName"
+                  placeholder="Enter full name"
+                  value={editUserName}
+                  onChange={(e) => setEditUserName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUpdateUser();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateUser}
+                disabled={updateUserMutation.isPending || !editUserName.trim()}
+              >
+                {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Area Management */}
         <Card>

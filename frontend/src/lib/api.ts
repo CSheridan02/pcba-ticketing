@@ -225,5 +225,28 @@ export const api = {
     if (!response.ok) throw new Error('Failed to update user role');
     return response.json();
   },
+
+  async updateUser(userId: string, data: { full_name: string }) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/users/${userId}`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update user');
+    return response.json();
+  },
+
+  async deleteUser(userId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/users/${userId}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete user');
+    return response.json();
+  },
 };
 
