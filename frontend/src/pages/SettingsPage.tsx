@@ -122,18 +122,20 @@ export default function SettingsPage() {
         {/* User Management */}
         <Collapsible defaultOpen={false}>
           <Card>
-            <CardHeader>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity [&[data-state=open]>svg]:rotate-180">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  <CardTitle>User Management</CardTitle>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between w-full [&[data-state=open]>svg]:rotate-180">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    <CardTitle>User Management</CardTitle>
+                  </div>
+                  <ChevronDown className="h-5 w-5 transition-transform duration-200" />
                 </div>
-                <ChevronDown className="h-5 w-5 transition-transform duration-200" />
-              </CollapsibleTrigger>
-              <CardDescription>
-                Manage user roles and permissions
-              </CardDescription>
-            </CardHeader>
+                <CardDescription>
+                  Manage user roles and permissions
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent>
             {isLoadingUsers ? (
@@ -258,15 +260,17 @@ export default function SettingsPage() {
         {/* Area Management */}
         <Collapsible defaultOpen={false}>
           <Card>
-            <CardHeader>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity [&[data-state=open]>svg]:rotate-180">
-                <CardTitle>Area Management</CardTitle>
-                <ChevronDown className="h-5 w-5 transition-transform duration-200" />
-              </CollapsibleTrigger>
-              <CardDescription>
-                Configure areas that can be assigned to tickets
-              </CardDescription>
-            </CardHeader>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between w-full [&[data-state=open]>svg]:rotate-180">
+                  <CardTitle>Area Management</CardTitle>
+                  <ChevronDown className="h-5 w-5 transition-transform duration-200" />
+                </div>
+                <CardDescription>
+                  Configure areas that can be assigned to tickets
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent>
             <div className="space-y-3 mb-6">
