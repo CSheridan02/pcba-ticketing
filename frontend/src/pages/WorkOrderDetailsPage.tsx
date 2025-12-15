@@ -301,7 +301,7 @@ export default function WorkOrderDetailsPage() {
                     Create Ticket
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Create New Ticket</DialogTitle>
                     <DialogDescription>
@@ -376,7 +376,7 @@ export default function WorkOrderDetailsPage() {
 
             {/* Edit Ticket Dialog */}
             <Dialog open={isEditTicketOpen} onOpenChange={setIsEditTicketOpen}>
-              <DialogContent>
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>Edit Ticket</DialogTitle>
                   <DialogDescription>

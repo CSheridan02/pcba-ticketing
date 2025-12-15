@@ -45,7 +45,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Enter descrip
   }
 
   return (
-    <div className="border rounded-md">
+    <div className="border rounded-md relative">
       {/* Toolbar */}
       <div className="border-b bg-gray-50 p-2 flex flex-wrap gap-1">
         <Button
@@ -118,15 +118,17 @@ export function RichTextEditor({ content, onChange, placeholder = 'Enter descrip
         </Button>
       </div>
 
-      {/* Editor Content */}
-      <EditorContent editor={editor} />
-      
-      {/* Placeholder */}
-      {editor.isEmpty && (
-        <div className="absolute top-[52px] left-3 text-gray-400 pointer-events-none">
-          {placeholder}
-        </div>
-      )}
+      {/* Editor Content with Placeholder */}
+      <div className="relative">
+        <EditorContent editor={editor} />
+        
+        {/* Placeholder */}
+        {editor.isEmpty && (
+          <div className="absolute top-3 left-3 text-gray-400 pointer-events-none">
+            {placeholder}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
