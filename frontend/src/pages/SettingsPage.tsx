@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { api } from '@/lib/api';
-import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User, Pencil } from 'lucide-react';
+import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User, Pencil, ChevronDown } from 'lucide-react';
 
 export default function SettingsPage() {
   const [isAddAreaOpen, setIsAddAreaOpen] = useState(false);
@@ -119,17 +120,22 @@ export default function SettingsPage() {
         </div>
 
         {/* User Management */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              <CardTitle>User Management</CardTitle>
-            </div>
-            <CardDescription>
-              Manage user roles and permissions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Collapsible defaultOpen={false}>
+          <Card>
+            <CardHeader>
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity [&[data-state=open]>svg]:rotate-180">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  <CardTitle>User Management</CardTitle>
+                </div>
+                <ChevronDown className="h-5 w-5 transition-transform duration-200" />
+              </CollapsibleTrigger>
+              <CardDescription>
+                Manage user roles and permissions
+              </CardDescription>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent>
             {isLoadingUsers ? (
               <div className="text-center py-4 text-gray-500">Loading users...</div>
             ) : users.length === 0 ? (
@@ -200,13 +206,15 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-900">
-                <strong>Admin Note:</strong> Administrators have full access to create/edit/delete work orders and tickets, and can manage settings. Line Operators can create tickets and edit their own tickets only.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-900">
+                    <strong>Admin Note:</strong> Administrators have full access to create/edit/delete work orders and tickets, and can manage settings. Line Operators can create tickets and edit their own tickets only.
+                  </p>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Edit User Dialog */}
         <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
@@ -248,14 +256,19 @@ export default function SettingsPage() {
         </Dialog>
 
         {/* Area Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Area Management</CardTitle>
-            <CardDescription>
-              Configure areas that can be assigned to tickets
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Collapsible defaultOpen={false}>
+          <Card>
+            <CardHeader>
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity [&[data-state=open]>svg]:rotate-180">
+                <CardTitle>Area Management</CardTitle>
+                <ChevronDown className="h-5 w-5 transition-transform duration-200" />
+              </CollapsibleTrigger>
+              <CardDescription>
+                Configure areas that can be assigned to tickets
+              </CardDescription>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent>
             <div className="space-y-3 mb-6">
               {isLoading ? (
                 <div className="text-center py-4 text-gray-500">Loading...</div>
@@ -328,13 +341,15 @@ export default function SettingsPage() {
               </DialogContent>
             </Dialog>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-900">
-                <strong>Admin Note:</strong> Areas added here will be available for selection when creating tickets. Make sure to configure all the areas your team needs before line operators start creating tickets.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-900">
+                    <strong>Admin Note:</strong> Areas added here will be available for selection when creating tickets. Make sure to configure all the areas your team needs before line operators start creating tickets.
+                  </p>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </Layout>
   );
