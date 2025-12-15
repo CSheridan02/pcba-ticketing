@@ -248,5 +248,17 @@ export const api = {
     if (!response.ok) throw new Error('Failed to delete user');
     return response.json();
   },
+
+  async updateUserAccess(userId: string, accessGranted: boolean) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/users/${userId}/access`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ access_granted: accessGranted }),
+    });
+    if (!response.ok) throw new Error('Failed to update user access');
+    return response.json();
+  },
 };
 

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { api } from '@/lib/api';
 import { Plus, Trash2, Settings as SettingsIcon, Users, Shield, User, Pencil, ChevronDown } from 'lucide-react';
@@ -72,6 +73,14 @@ export default function SettingsPage() {
     },
   });
 
+  const updateUserAccessMutation = useMutation({
+    mutationFn: ({ userId, accessGranted }: { userId: string; accessGranted: boolean }) =>
+      api.updateUserAccess(userId, accessGranted),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
   const handleAddArea = () => {
     if (!newAreaName.trim()) return;
     createAreaMutation.mutate({ name: newAreaName.trim() });
@@ -107,6 +116,13 @@ export default function SettingsPage() {
   const handleDeleteUser = (userId: string, userName: string) => {
     if (window.confirm(`Are you sure you want to delete ${userName}? This action cannot be undone.`)) {
       deleteUserMutation.mutate(userId);
+    }
+  };
+
+  const handleAccessChange = (userId: string, userName: string, currentAccess: boolean) => {
+    const action = currentAccess ? 'revoke access from' : 'grant access to';
+    if (window.confirm(`Are you sure you want to ${action} ${userName}?`)) {
+      updateUserAccessMutation.mutate({ userId, accessGranted: !currentAccess });
     }
   };
 
@@ -162,28 +178,44 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{user.full_name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium truncate">{user.full_name}</div>
+                          <Badge
+                            variant={user.role === 'admin' ? 'default' : 'secondary'}
+                            className={user.role === 'admin' ? 'bg-blue-600' : ''}
+                          >
+                            {user.role === 'admin' ? 'Admin' : 'Operator'}
+                          </Badge>
+                        </div>
                         <div className="text-sm text-gray-500 truncate">{user.email || 'No email'}</div>
                       </div>
-                      <Badge
-                        variant={user.role === 'admin' ? 'default' : 'secondary'}
-                        className={user.role === 'admin' ? 'bg-blue-600' : ''}
-                      >
-                        {user.role === 'admin' ? 'Administrator' : 'Line Operator'}
-                      </Badge>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-4 ml-4">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`access-${user.id}`}
+                          checked={user.access_granted}
+                          onCheckedChange={() => handleAccessChange(user.id, user.full_name, user.access_granted)}
+                          disabled={updateUserAccessMutation.isPending || user.role === 'admin'}
+                        />
+                        <Label 
+                          htmlFor={`access-${user.id}`} 
+                          className={`text-sm cursor-pointer ${user.access_granted ? 'text-green-700' : 'text-gray-500'}`}
+                        >
+                          {user.access_granted ? 'Access Granted' : 'Access Pending'}
+                        </Label>
+                      </div>
                       <Select
                         value={user.role}
                         onValueChange={(value) => handleRoleChange(user.id, value, user.full_name)}
                         disabled={updateUserRoleMutation.isPending}
                       >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-[140px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="line_operator">Line Operator</SelectItem>
-                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="line_operator">Operator</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

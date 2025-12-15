@@ -64,5 +64,18 @@ export class UsersService {
     if (error) throw error;
     return { message: 'User deleted successfully' };
   }
+
+  async updateAccess(id: string, accessGranted: boolean) {
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('users')
+      .update({ access_granted: accessGranted })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
 }
 

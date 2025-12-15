@@ -9,6 +9,7 @@ interface UserProfile {
   email: string;
   full_name: string;
   role: 'admin' | 'line_operator';
+  access_granted: boolean;
 }
 
 interface AuthContextType {

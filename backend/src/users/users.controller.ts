@@ -33,6 +33,13 @@ export class UsersController {
     return this.usersService.update(id, updateData);
   }
 
+  @Patch(':id/access')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  updateAccess(@Param('id') id: string, @Body('access_granted') accessGranted: boolean) {
+    return this.usersService.updateAccess(id, accessGranted);
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('admin')

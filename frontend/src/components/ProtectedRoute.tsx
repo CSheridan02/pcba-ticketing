@@ -22,6 +22,11 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
+  // Check if user has access granted
+  if (profile && !profile.access_granted) {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   if (requireAdmin && profile?.role !== 'admin') {
     return <Navigate to="/work-orders" replace />;
   }

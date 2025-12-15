@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
+import PendingApprovalPage from './pages/PendingApprovalPage';
 import WorkOrdersPage from './pages/WorkOrdersPage';
 import WorkOrderDetailsPage from './pages/WorkOrderDetailsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -23,6 +24,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/pending-approval" element={<PendingApprovalPage />} />
             <Route
               path="/work-orders"
               element={
