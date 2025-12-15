@@ -28,13 +28,11 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  @Roles('admin')
   update(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto) {
     return this.ticketsService.update(id, updateTicketDto);
   }
 
   @Delete(':id')
-  @Roles('admin')
   remove(@Param('id') id: string) {
     return this.ticketsService.remove(id);
   }

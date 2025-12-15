@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUpload } from '@/components/ImageUpload';
 import { api } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
@@ -19,7 +18,6 @@ export default function WorkOrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isEditTicketOpen, setIsEditTicketOpen] = useState(false);
   const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
@@ -503,32 +501,31 @@ export default function WorkOrderDetailsPage() {
                               <Clock className="h-4 w-4" />
                               <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
                             </div>
-                            {profile?.role === 'admin' && (
-                              <div className="flex items-center gap-1 print:hidden">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditClick(ticket);
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(ticket);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
+                            {/* Edit and delete buttons - available to all authenticated users */}
+                            <div className="flex items-center gap-1 print:hidden">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClick(ticket);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(ticket);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
 
