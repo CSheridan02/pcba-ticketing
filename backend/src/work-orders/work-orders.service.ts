@@ -38,7 +38,7 @@ export class WorkOrdersService {
 
     // Apply search filter
     if (search) {
-      query = query.or(`work_order_number.ilike.%${search}%,asm_number.ilike.%${search}%,description.ilike.%${search}%,serial_number_start.ilike.%${search}%`);
+      query = query.or(`work_order_number.ilike.%${search}%,asm_number.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
     // Apply status filter
@@ -48,8 +48,10 @@ export class WorkOrdersService {
 
     // Apply sorting
     if (sortBy === 'serial_number') {
-      // Sort by serial number (nulls last), then by created_at
-      query = query.order('serial_number_start', { ascending: true, nullsFirst: false });
+      // Sort by first serial range start (nulls last), then by created_at
+      // Note: JSONB sorting is more complex, we'll sort by created_at for now
+      // Can be enhanced later if needed
+      query = query.order('created_at', { ascending: false });
     } else {
       // Default: sort by created_at descending
       query = query.order('created_at', { ascending: false });
@@ -114,10 +116,31 @@ export class WorkOrdersService {
       .from('work_orders')
       .select('*')
       .eq('status', 'Active')
-      .order('serial_number_end', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    
+    // Sort by latest serial number in ranges (client-side for JSONB complexity)
+    if (data) {
+      data.sort((a, b) => {
+        const aRanges = a.serial_ranges || [];
+        const bRanges = b.serial_ranges || [];
+        
+        if (aRanges.length === 0 && bRanges.length === 0) return 0;
+        if (aRanges.length === 0) return 1;  // a goes after b
+        if (bRanges.length === 0) return -1; // a goes before b
+        
+        // Get the last (highest) end serial from each
+        const aLastEnd = aRanges[aRanges.length - 1]?.end || '';
+        const bLastEnd = bRanges[bRanges.length - 1]?.end || '';
+        
+        const aNum = parseInt(aLastEnd.replace('W', '')) || 0;
+        const bNum = parseInt(bLastEnd.replace('W', '')) || 0;
+        
+        return bNum - aNum; // Descending order (highest first)
+      });
+    }
+    
     return data;
   }
 }

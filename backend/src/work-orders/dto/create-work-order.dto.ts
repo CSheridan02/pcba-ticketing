@@ -1,4 +1,13 @@
-import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class SerialRange {
+  @IsString()
+  start: string;
+
+  @IsString()
+  end: string;
+}
 
 export class CreateWorkOrderDto {
   @IsString()
@@ -20,14 +29,10 @@ export class CreateWorkOrderDto {
   @IsOptional()
   status?: string;
 
-  @IsString()
+  @IsArray()
   @IsOptional()
-  @Matches(/^\d{7}W$/, { message: 'Serial number must be in format: #######W (7 digits followed by W)' })
-  serial_number_start?: string;
-
-  @IsString()
-  @IsOptional()
-  @Matches(/^\d{7}W$/, { message: 'Serial number must be in format: #######W (7 digits followed by W)' })
-  serial_number_end?: string;
+  @ValidateNested({ each: true })
+  @Type(() => SerialRange)
+  serial_ranges?: SerialRange[];
 }
 
