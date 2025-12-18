@@ -17,6 +17,7 @@ export default function WorkOrdersPage() {
   const { profile } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, _setStatusFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -27,6 +28,8 @@ export default function WorkOrdersPage() {
     description: '',
     quantity: '',
     status: 'Not Started',
+    serial_number_start: '',
+    serial_number_end: '',
   });
   const [editWorkOrder, setEditWorkOrder] = useState({
     work_order_number: '',
@@ -34,13 +37,15 @@ export default function WorkOrdersPage() {
     description: '',
     quantity: '',
     status: '',
+    serial_number_start: '',
+    serial_number_end: '',
   });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: workOrders = [], isLoading } = useQuery({
-    queryKey: ['work-orders', search, statusFilter],
-    queryFn: () => api.getWorkOrders(search || undefined, statusFilter || undefined),
+    queryKey: ['work-orders', search, statusFilter, sortBy],
+    queryFn: () => api.getWorkOrders(search || undefined, statusFilter || undefined, sortBy || undefined),
   });
 
   const { data: activeWorkOrders = [] } = useQuery({
@@ -60,6 +65,8 @@ export default function WorkOrdersPage() {
         description: '',
         quantity: '',
         status: 'Not Started',
+        serial_number_start: '',
+        serial_number_end: '',
       });
     },
   });
@@ -85,10 +92,21 @@ export default function WorkOrdersPage() {
   });
 
   const handleCreateWorkOrder = () => {
-    createMutation.mutate({
-      ...newWorkOrder,
+    const workOrderData: any = {
+      work_order_number: newWorkOrder.work_order_number,
+      asm_number: newWorkOrder.asm_number,
+      description: newWorkOrder.description,
       quantity: parseInt(newWorkOrder.quantity),
-    });
+      status: newWorkOrder.status,
+    };
+    
+    // Only include serial numbers if both are provided
+    if (newWorkOrder.serial_number_start && newWorkOrder.serial_number_end) {
+      workOrderData.serial_number_start = newWorkOrder.serial_number_start;
+      workOrderData.serial_number_end = newWorkOrder.serial_number_end;
+    }
+    
+    createMutation.mutate(workOrderData);
   };
 
   const handleEditClick = (workOrder: any) => {
@@ -99,18 +117,30 @@ export default function WorkOrdersPage() {
       description: workOrder.description,
       quantity: workOrder.quantity.toString(),
       status: workOrder.status,
+      serial_number_start: workOrder.serial_number_start || '',
+      serial_number_end: workOrder.serial_number_end || '',
     });
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateWorkOrder = () => {
     if (selectedWorkOrder) {
+      const updateData: any = {
+        asm_number: editWorkOrder.asm_number,
+        description: editWorkOrder.description,
+        quantity: parseInt(editWorkOrder.quantity),
+        status: editWorkOrder.status,
+      };
+      
+      // Include serial numbers if both are provided, or explicitly set to undefined to clear
+      if (editWorkOrder.serial_number_start && editWorkOrder.serial_number_end) {
+        updateData.serial_number_start = editWorkOrder.serial_number_start;
+        updateData.serial_number_end = editWorkOrder.serial_number_end;
+      }
+      
       updateMutation.mutate({
         id: selectedWorkOrder.id,
-        data: {
-          ...editWorkOrder,
-          quantity: parseInt(editWorkOrder.quantity),
-        },
+        data: updateData,
       });
     }
   };
@@ -220,6 +250,38 @@ export default function WorkOrdersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {/* Serial Number Range (Optional) */}
+                <div className="border-t pt-4 space-y-4">
+                  <div className="text-sm text-gray-600">
+                    Serial Number Range (Optional)
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="serial_number_start">Start</Label>
+                      <Input
+                        id="serial_number_start"
+                        placeholder="1234567W"
+                        value={newWorkOrder.serial_number_start}
+                        onChange={(e) => setNewWorkOrder({ ...newWorkOrder, serial_number_start: e.target.value.toUpperCase() })}
+                        maxLength={8}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="serial_number_end">End</Label>
+                      <Input
+                        id="serial_number_end"
+                        placeholder="1234890W"
+                        value={newWorkOrder.serial_number_end}
+                        onChange={(e) => setNewWorkOrder({ ...newWorkOrder, serial_number_end: e.target.value.toUpperCase() })}
+                        maxLength={8}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Format: 7 digits + W (e.g., 1234567W - 1234890W)
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -292,6 +354,38 @@ export default function WorkOrdersPage() {
                     <SelectItem value="Completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              
+              {/* Serial Number Range (Optional) */}
+              <div className="border-t pt-4 space-y-4">
+                <div className="text-sm text-gray-600">
+                  Serial Number Range (Optional)
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit_serial_number_start">Start</Label>
+                    <Input
+                      id="edit_serial_number_start"
+                      placeholder="1234567W"
+                      value={editWorkOrder.serial_number_start}
+                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_start: e.target.value.toUpperCase() })}
+                      maxLength={8}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_serial_number_end">End</Label>
+                    <Input
+                      id="edit_serial_number_end"
+                      placeholder="1234890W"
+                      value={editWorkOrder.serial_number_end}
+                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_end: e.target.value.toUpperCase() })}
+                      maxLength={8}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Format: 7 digits + W (e.g., 1234567W - 1234890W)
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -369,15 +463,28 @@ export default function WorkOrdersPage() {
           </Card>
         )}
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search work orders..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+        {/* Search and Sort */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search work orders..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Recent (default)</SelectItem>
+                <SelectItem value="serial_number">Serial Number</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Work Orders Table */}
@@ -389,6 +496,7 @@ export default function WorkOrdersPage() {
                 <tr>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Work Order #</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">ASM #</th>
+                  <th className="text-left p-4 font-medium text-sm text-gray-700">Serial Range</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Description</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Quantity</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Status</th>
@@ -402,13 +510,13 @@ export default function WorkOrdersPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={profile?.role === 'admin' ? 8 : 7} className="text-center p-8 text-gray-500">
+                    <td colSpan={profile?.role === 'admin' ? 9 : 8} className="text-center p-8 text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : workOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={profile?.role === 'admin' ? 8 : 7} className="text-center p-8 text-gray-500">
+                    <td colSpan={profile?.role === 'admin' ? 9 : 8} className="text-center p-8 text-gray-500">
                       No work orders found
                     </td>
                   </tr>
@@ -423,6 +531,15 @@ export default function WorkOrdersPage() {
                         <span className="text-primary font-medium">{wo.work_order_number}</span>
                       </td>
                       <td className="p-4 text-gray-700">{wo.asm_number}</td>
+                      <td className="p-4 text-gray-700">
+                        {wo.serial_number_start && wo.serial_number_end ? (
+                          <span className="text-sm font-mono">
+                            {wo.serial_number_start} - {wo.serial_number_end}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
                       <td className="p-4 text-gray-700">{wo.description}</td>
                       <td className="p-4 text-gray-700">{wo.quantity}</td>
                       <td className="p-4">{getStatusBadge(wo.status)}</td>

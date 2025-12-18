@@ -42,3 +42,4 @@ TO authenticated
 USING (bucket_id = 'ticket-images' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 
+

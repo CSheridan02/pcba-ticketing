@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, Matches } from 'class-validator';
 
 export class UpdateWorkOrderDto {
   @IsString()
@@ -16,5 +16,15 @@ export class UpdateWorkOrderDto {
   @IsEnum(['Not Started', 'Active', 'Completed'])
   @IsOptional()
   status?: string;
+
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{7}W$/, { message: 'Serial number must be in format: #######W (7 digits followed by W)' })
+  serial_number_start?: string;
+
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{7}W$/, { message: 'Serial number must be in format: #######W (7 digits followed by W)' })
+  serial_number_end?: string;
 }
 

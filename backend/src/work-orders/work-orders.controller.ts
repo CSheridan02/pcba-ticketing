@@ -17,8 +17,12 @@ export class WorkOrdersController {
   }
 
   @Get()
-  findAll(@Query('search') search?: string, @Query('status') status?: string) {
-    return this.workOrdersService.findAll(search, status);
+  findAll(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    return this.workOrdersService.findAll(search, status, sortBy);
   }
 
   @Get('active')

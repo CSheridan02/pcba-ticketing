@@ -252,6 +252,14 @@ export default function WorkOrderDetailsPage() {
                 <h3 className="text-sm font-medium text-gray-500 mb-1">ASM #</h3>
                 <p className="text-lg font-semibold">{workOrder.asm_number}</p>
               </div>
+              {workOrder.serial_number_start && workOrder.serial_number_end && (
+                <div className="md:col-span-2">
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Serial Number Range</h3>
+                  <p className="text-lg font-semibold font-mono">
+                    {workOrder.serial_number_start} - {workOrder.serial_number_end}
+                  </p>
+                </div>
+              )}
               <div className="md:col-span-2">
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
                 <p className="text-base">{workOrder.description}</p>
@@ -297,6 +305,9 @@ export default function WorkOrderDetailsPage() {
             </div>
             <h1 className="text-2xl font-bold mb-2">Work Order: {workOrder.work_order_number}</h1>
             <p className="text-gray-600">ASM #: {workOrder.asm_number}</p>
+            {workOrder.serial_number_start && workOrder.serial_number_end && (
+              <p className="text-gray-600 font-mono">Serial Range: {workOrder.serial_number_start} - {workOrder.serial_number_end}</p>
+            )}
             <p className="text-gray-600 mb-4">{workOrder.description}</p>
             <div className="border-b-2 border-gray-300 mb-4"></div>
           </div>

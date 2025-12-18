@@ -27,11 +27,12 @@ export const api = {
   },
 
   // Work Orders
-  async getWorkOrders(search?: string, status?: string) {
+  async getWorkOrders(search?: string, status?: string, sortBy?: string) {
     const headers = await getAuthHeaders();
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     if (status) params.append('status', status);
+    if (sortBy) params.append('sortBy', sortBy);
     const url = `${API_URL}/work-orders${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url, { 
       headers,

@@ -26,7 +26,7 @@ export class WorkOrdersService {
     return data;
   }
 
-  async findAll(search?: string, status?: string) {
+  async findAll(search?: string, status?: string, sortBy?: string) {
     const supabase = this.supabaseService.getClient();
     let query = supabase
       .from('work_orders')
@@ -34,15 +34,25 @@ export class WorkOrdersService {
         *,
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
         tickets(count)
-      `)
-      .order('created_at', { ascending: false });
+      `);
 
+    // Apply search filter
     if (search) {
-      query = query.or(`work_order_number.ilike.%${search}%,asm_number.ilike.%${search}%,description.ilike.%${search}%`);
+      query = query.or(`work_order_number.ilike.%${search}%,asm_number.ilike.%${search}%,description.ilike.%${search}%,serial_number_start.ilike.%${search}%`);
     }
 
+    // Apply status filter
     if (status) {
       query = query.eq('status', status);
+    }
+
+    // Apply sorting
+    if (sortBy === 'serial_number') {
+      // Sort by serial number (nulls last), then by created_at
+      query = query.order('serial_number_start', { ascending: true, nullsFirst: false });
+    } else {
+      // Default: sort by created_at descending
+      query = query.order('created_at', { ascending: false });
     }
 
     const { data, error } = await query;
