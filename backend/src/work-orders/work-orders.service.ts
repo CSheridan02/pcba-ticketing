@@ -114,6 +114,7 @@ export class WorkOrdersService {
       .from('work_orders')
       .select('*')
       .eq('status', 'Active')
+      .order('serial_number_end', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
 
     if (error) throw error;
