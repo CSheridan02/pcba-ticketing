@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { ImageUpload } from '@/components/ImageUpload';
@@ -24,6 +25,7 @@ export default function WorkOrderDetailsPage() {
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isEditTicketOpen, setIsEditTicketOpen] = useState(false);
   const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
+  const [isEditWorkOrderOpen, setIsEditWorkOrderOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [newTicket, setNewTicket] = useState({
     description: '',
@@ -34,6 +36,14 @@ export default function WorkOrderDetailsPage() {
     description: '',
     priority: 'Medium',
     area_id: '',
+  });
+  const [editWorkOrder, setEditWorkOrder] = useState({
+    asm_number: '',
+    description: '',
+    quantity: '',
+    status: '',
+    serial_number_start: '',
+    serial_number_end: '',
   });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -89,6 +99,16 @@ export default function WorkOrderDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
       setIsDeleteTicketOpen(false);
       setSelectedTicket(null);
+    },
+  });
+
+  const updateWorkOrderMutation = useMutation({
+    mutationFn: (data: any) => api.updateWorkOrder(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['active-work-orders'] });
+      setIsEditWorkOrderOpen(false);
     },
   });
 
@@ -154,6 +174,35 @@ export default function WorkOrderDetailsPage() {
   const handleDeleteTicket = () => {
     if (!selectedTicket) return;
     deleteTicketMutation.mutate(selectedTicket.id);
+  };
+
+  const handleEditWorkOrderClick = () => {
+    setEditWorkOrder({
+      asm_number: workOrder.asm_number,
+      description: workOrder.description,
+      quantity: workOrder.quantity.toString(),
+      status: workOrder.status,
+      serial_number_start: workOrder.serial_number_start || '',
+      serial_number_end: workOrder.serial_number_end || '',
+    });
+    setIsEditWorkOrderOpen(true);
+  };
+
+  const handleUpdateWorkOrder = () => {
+    const updateData: any = {
+      asm_number: editWorkOrder.asm_number,
+      description: editWorkOrder.description,
+      quantity: parseInt(editWorkOrder.quantity),
+      status: editWorkOrder.status,
+    };
+    
+    // Include serial numbers if both are provided
+    if (editWorkOrder.serial_number_start && editWorkOrder.serial_number_end) {
+      updateData.serial_number_start = editWorkOrder.serial_number_start;
+      updateData.serial_number_end = editWorkOrder.serial_number_end;
+    }
+    
+    updateWorkOrderMutation.mutate(updateData);
   };
 
   const handlePrint = () => {
@@ -241,6 +290,12 @@ export default function WorkOrderDetailsPage() {
                   Created {new Date(workOrder.created_at).toLocaleDateString()}
                 </p>
               </div>
+              {profile?.role === 'admin' && (
+                <Button variant="outline" size="sm" onClick={handleEditWorkOrderClick}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -292,6 +347,101 @@ export default function WorkOrderDetailsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Edit Work Order Dialog */}
+        <Dialog open={isEditWorkOrderOpen} onOpenChange={setIsEditWorkOrderOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Work Order</DialogTitle>
+              <DialogDescription>
+                Update the work order details.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+              <div>
+                <Label htmlFor="edit_wo_asm_number">ASM #</Label>
+                <Input
+                  id="edit_wo_asm_number"
+                  value={editWorkOrder.asm_number}
+                  onChange={(e) => setEditWorkOrder({ ...editWorkOrder, asm_number: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_wo_description">Description</Label>
+                <Input
+                  id="edit_wo_description"
+                  value={editWorkOrder.description}
+                  onChange={(e) => setEditWorkOrder({ ...editWorkOrder, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_wo_quantity">Quantity</Label>
+                <Input
+                  id="edit_wo_quantity"
+                  type="number"
+                  value={editWorkOrder.quantity}
+                  onChange={(e) => setEditWorkOrder({ ...editWorkOrder, quantity: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_wo_status">Status</Label>
+                <Select
+                  value={editWorkOrder.status}
+                  onValueChange={(value) => setEditWorkOrder({ ...editWorkOrder, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Not Started">Not Started</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Serial Number Range */}
+              <div className="border-t pt-4 space-y-4">
+                <div className="text-sm text-gray-600">
+                  Serial Number Range (Optional)
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit_wo_serial_start">Start</Label>
+                    <Input
+                      id="edit_wo_serial_start"
+                      placeholder="1234567W"
+                      value={editWorkOrder.serial_number_start}
+                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_start: e.target.value.toUpperCase() })}
+                      maxLength={8}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_wo_serial_end">End</Label>
+                    <Input
+                      id="edit_wo_serial_end"
+                      placeholder="1234890W"
+                      value={editWorkOrder.serial_number_end}
+                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_end: e.target.value.toUpperCase() })}
+                      maxLength={8}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Format: 7 digits + W (e.g., 1234567W - 1234890W)
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditWorkOrderOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateWorkOrder} disabled={updateWorkOrderMutation.isPending}>
+                {updateWorkOrderMutation.isPending ? 'Updating...' : 'Update'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Tickets Section */}
         <div id="tickets-print-section">
