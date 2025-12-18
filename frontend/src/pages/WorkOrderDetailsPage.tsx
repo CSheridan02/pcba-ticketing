@@ -14,7 +14,7 @@ import { ImageUpload } from '@/components/ImageUpload';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Printer, AlertCircle, Clock, ExternalLink, Pencil, Trash2, X } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 export default function WorkOrderDetailsPage() {
@@ -42,9 +42,8 @@ export default function WorkOrderDetailsPage() {
     description: '',
     quantity: '',
     status: '',
-    serial_number_start: '',
-    serial_number_end: '',
   });
+  const [editSerialRanges, setEditSerialRanges] = useState<Array<{start: string, end: string}>>([{start: '', end: ''}]);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -182,13 +181,17 @@ export default function WorkOrderDetailsPage() {
       description: workOrder.description,
       quantity: workOrder.quantity.toString(),
       status: workOrder.status,
-      serial_number_start: workOrder.serial_number_start || '',
-      serial_number_end: workOrder.serial_number_end || '',
     });
+    // Load serial ranges or default to one empty range
+    const ranges = workOrder.serial_ranges || [];
+    setEditSerialRanges(ranges.length > 0 ? ranges : [{start: '', end: ''}]);
     setIsEditWorkOrderOpen(true);
   };
 
   const handleUpdateWorkOrder = () => {
+    // Filter out empty ranges
+    const validRanges = editSerialRanges.filter(r => r.start && r.end);
+    
     const updateData: any = {
       asm_number: editWorkOrder.asm_number,
       description: editWorkOrder.description,
@@ -196,13 +199,30 @@ export default function WorkOrderDetailsPage() {
       status: editWorkOrder.status,
     };
     
-    // Include serial numbers if both are provided
-    if (editWorkOrder.serial_number_start && editWorkOrder.serial_number_end) {
-      updateData.serial_number_start = editWorkOrder.serial_number_start;
-      updateData.serial_number_end = editWorkOrder.serial_number_end;
+    // Include serial ranges if any are valid
+    if (validRanges.length > 0) {
+      updateData.serial_ranges = validRanges;
+    } else {
+      updateData.serial_ranges = [];
     }
     
     updateWorkOrderMutation.mutate(updateData);
+  };
+
+  const addEditSerialRange = () => {
+    setEditSerialRanges([...editSerialRanges, {start: '', end: ''}]);
+  };
+
+  const removeEditSerialRange = (index: number) => {
+    if (editSerialRanges.length > 1) {
+      setEditSerialRanges(editSerialRanges.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateEditSerialRange = (index: number, field: 'start' | 'end', value: string) => {
+    const updated = [...editSerialRanges];
+    updated[index][field] = value.toUpperCase();
+    setEditSerialRanges(updated);
   };
 
   const handlePrint = () => {
@@ -307,14 +327,21 @@ export default function WorkOrderDetailsPage() {
                 <h3 className="text-sm font-medium text-gray-500 mb-1">ASM #</h3>
                 <p className="text-lg font-semibold">{workOrder.asm_number}</p>
               </div>
-              {workOrder.serial_number_start && workOrder.serial_number_end && (
+              {workOrder.serial_ranges && workOrder.serial_ranges.length > 0 && (
                 <div className="md:col-span-2">
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Serial Number Range</h3>
-                  <p className="text-lg font-semibold font-mono">
-                    {workOrder.serial_number_start} - {workOrder.serial_number_end}
-                  </p>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Serial Number Ranges</h3>
+                  <div className="space-y-1">
+                    {workOrder.serial_ranges.map((range: any, idx: number) => (
+                      <p key={idx} className="text-lg font-semibold font-mono">
+                        {range.start} - {range.end}
+                      </p>
+                    ))}
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    ({parseInt(workOrder.serial_number_end.replace('W', '')) - parseInt(workOrder.serial_number_start.replace('W', '')) + 1} units)
+                    ({workOrder.serial_ranges.reduce((total: number, range: any) => {
+                      const count = parseInt(range.end.replace('W', '')) - parseInt(range.start.replace('W', '')) + 1;
+                      return total + count;
+                    }, 0)} units total)
                   </p>
                 </div>
               )}
@@ -403,33 +430,61 @@ export default function WorkOrderDetailsPage() {
                 </Select>
               </div>
               
-              {/* Serial Number Range */}
+              {/* Serial Number Ranges */}
               <div className="border-t pt-4 space-y-4">
-                <div className="text-sm text-gray-600">
-                  Serial Number Range (Optional)
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit_wo_serial_start">Start</Label>
-                    <Input
-                      id="edit_wo_serial_start"
-                      placeholder="1234567W"
-                      value={editWorkOrder.serial_number_start}
-                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_start: e.target.value.toUpperCase() })}
-                      maxLength={8}
-                    />
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-600">
+                    Serial Number Ranges (Optional)
                   </div>
-                  <div>
-                    <Label htmlFor="edit_wo_serial_end">End</Label>
-                    <Input
-                      id="edit_wo_serial_end"
-                      placeholder="1234890W"
-                      value={editWorkOrder.serial_number_end}
-                      onChange={(e) => setEditWorkOrder({ ...editWorkOrder, serial_number_end: e.target.value.toUpperCase() })}
-                      maxLength={8}
-                    />
-                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={addEditSerialRange}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Range
+                  </Button>
                 </div>
+                
+                {editSerialRanges.map((range, index) => (
+                  <div key={index} className="relative">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor={`edit_wo_serial_start_${index}`}>Start</Label>
+                        <Input
+                          id={`edit_wo_serial_start_${index}`}
+                          placeholder="1234567W"
+                          value={range.start}
+                          onChange={(e) => updateEditSerialRange(index, 'start', e.target.value)}
+                          maxLength={8}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`edit_wo_serial_end_${index}`}>End</Label>
+                        <Input
+                          id={`edit_wo_serial_end_${index}`}
+                          placeholder="1234890W"
+                          value={range.end}
+                          onChange={(e) => updateEditSerialRange(index, 'end', e.target.value)}
+                          maxLength={8}
+                        />
+                      </div>
+                    </div>
+                    {editSerialRanges.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeEditSerialRange(index)}
+                        className="absolute -top-2 -right-2 p-1 h-auto w-auto text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                
                 <p className="text-xs text-gray-500">
                   Format: 7 digits + W (e.g., 1234567W - 1234890W)
                 </p>
@@ -458,8 +513,15 @@ export default function WorkOrderDetailsPage() {
             </div>
             <h1 className="text-2xl font-bold mb-2">Work Order: {workOrder.work_order_number}</h1>
             <p className="text-gray-600">ASM #: {workOrder.asm_number}</p>
-            {workOrder.serial_number_start && workOrder.serial_number_end && (
-              <p className="text-gray-600 font-mono">Serial Range: {workOrder.serial_number_start} - {workOrder.serial_number_end}</p>
+            {workOrder.serial_ranges && workOrder.serial_ranges.length > 0 && (
+              <div className="text-gray-600 font-mono">
+                Serial Ranges: {workOrder.serial_ranges.map((range: any, idx: number) => (
+                  <span key={idx}>
+                    {idx > 0 && ', '}
+                    {range.start} - {range.end}
+                  </span>
+                ))}
+              </div>
             )}
             <p className="text-gray-600 mb-4">{workOrder.description}</p>
             <div className="border-b-2 border-gray-300 mb-4"></div>
