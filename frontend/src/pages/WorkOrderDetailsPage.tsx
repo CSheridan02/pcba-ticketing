@@ -313,6 +313,9 @@ export default function WorkOrderDetailsPage() {
                   <p className="text-lg font-semibold font-mono">
                     {workOrder.serial_number_start} - {workOrder.serial_number_end}
                   </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    ({parseInt(workOrder.serial_number_end.replace('W', '')) - parseInt(workOrder.serial_number_start.replace('W', '')) + 1} units)
+                  </p>
                 </div>
               )}
               <div className="md:col-span-2">
