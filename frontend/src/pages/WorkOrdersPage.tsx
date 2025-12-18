@@ -17,7 +17,7 @@ export default function WorkOrdersPage() {
   const { profile } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, _setStatusFilter] = useState<string>('');
-  const [sortBy, setSortBy] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('recent');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -45,7 +45,11 @@ export default function WorkOrdersPage() {
 
   const { data: workOrders = [], isLoading } = useQuery({
     queryKey: ['work-orders', search, statusFilter, sortBy],
-    queryFn: () => api.getWorkOrders(search || undefined, statusFilter || undefined, sortBy || undefined),
+    queryFn: () => api.getWorkOrders(
+      search || undefined, 
+      statusFilter || undefined, 
+      sortBy === 'recent' ? undefined : sortBy
+    ),
   });
 
   const { data: activeWorkOrders = [] } = useQuery({
@@ -480,7 +484,7 @@ export default function WorkOrdersPage() {
                 <SelectValue placeholder="Sort by..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Recent (default)</SelectItem>
+                <SelectItem value="recent">Recent (default)</SelectItem>
                 <SelectItem value="serial_number">Serial Number</SelectItem>
               </SelectContent>
             </Select>
