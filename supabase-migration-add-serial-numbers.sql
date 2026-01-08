@@ -13,3 +13,6 @@ COMMENT ON COLUMN public.work_orders.serial_number_end IS 'End of serial number 
 -- Create index for better sorting performance
 CREATE INDEX idx_work_orders_serial_number_start ON public.work_orders(serial_number_start) WHERE serial_number_start IS NOT NULL;
 
+
+
+

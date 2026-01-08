@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { AreasModule } from './areas/areas.module';
 import { WorkOrdersModule } from './work-orders/work-orders.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { BoardsModule } from './boards/boards.module';
 import supabaseConfig from './config/supabase.config';
 
 @Module({
@@ -20,6 +21,7 @@ import supabaseConfig from './config/supabase.config';
     AuthModule,
     UsersModule,
     AreasModule,
+    BoardsModule,
     WorkOrdersModule,
     TicketsModule,
   ],

@@ -43,3 +43,6 @@ USING (bucket_id = 'ticket-images' AND auth.uid()::text = (storage.foldername(na
 
 
 
+
+
+

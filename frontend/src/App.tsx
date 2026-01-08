@@ -7,6 +7,7 @@ import PendingApprovalPage from './pages/PendingApprovalPage';
 import WorkOrdersPage from './pages/WorkOrdersPage';
 import WorkOrderDetailsPage from './pages/WorkOrderDetailsPage';
 import SettingsPage from './pages/SettingsPage';
+import BoardsPage from './pages/BoardsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +39,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <WorkOrderDetailsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/boards"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <BoardsPage />
                 </ProtectedRoute>
               }
             />

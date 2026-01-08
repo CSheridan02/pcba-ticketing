@@ -288,5 +288,99 @@ export const api = {
     if (!response.ok) throw new Error('Failed to update user access');
     return response.json();
   },
+
+  // Boards
+  async getBoards(search?: string) {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    const url = `${API_URL}/boards${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch boards');
+    return response.json();
+  },
+
+  async getBoard(id: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/${id}`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch board');
+    return response.json();
+  },
+
+  async createBoard(data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create board');
+    return response.json();
+  },
+
+  async updateBoard(id: string, data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/${id}`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update board');
+    return response.json();
+  },
+
+  async deleteBoard(id: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/${id}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete board');
+    return response.json();
+  },
+
+  async addBoardCycleTime(boardId: string, data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/${boardId}/cycle-times`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to add cycle time');
+    return response.json();
+  },
+
+  async updateBoardCycleTime(cycleTimeId: string, data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/cycle-times/${cycleTimeId}`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update cycle time');
+    return response.json();
+  },
+
+  async deleteBoardCycleTime(cycleTimeId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/cycle-times/${cycleTimeId}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete cycle time');
+    return response.json();
+  },
 };
 

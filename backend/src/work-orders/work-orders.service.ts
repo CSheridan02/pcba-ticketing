@@ -3,17 +3,52 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 
+type SerialRange = { start?: string; end?: string };
+
 @Injectable()
 export class WorkOrdersService {
   constructor(private supabaseService: SupabaseService) {}
 
+  private extractMaxSerialEnd(serialRanges: unknown): string | null {
+    if (!Array.isArray(serialRanges) || serialRanges.length === 0) return null;
+
+    let best: { serial: string; num: number } | null = null;
+
+    for (const r of serialRanges as SerialRange[]) {
+      const end = (r?.end || '').toString().trim().toUpperCase();
+      // Expected format: digits + single alpha suffix (commonly W)
+      const m = end.match(/^(\d+)([A-Z])$/);
+      if (!m) continue;
+      const num = parseInt(m[1], 10);
+      if (!Number.isFinite(num)) continue;
+
+      if (!best || num > best.num) {
+        best = { serial: end, num };
+      }
+    }
+
+    return best?.serial ?? null;
+  }
+
   async create(createWorkOrderDto: CreateWorkOrderDto, userId: string) {
     const supabase = this.supabaseService.getClient();
+
+    const { data: board, error: boardError } = await supabase
+      .from('boards')
+      .select('id, asm_number, description')
+      .eq('id', createWorkOrderDto.board_id)
+      .single();
+
+    if (boardError || !board) {
+      throw new NotFoundException('Board not found');
+    }
 
     const { data, error } = await supabase
       .from('work_orders')
       .insert([{
         ...createWorkOrderDto,
+        asm_number: board.asm_number,
+        description: board.description,
         created_by: userId,
       }])
       .select(`
@@ -32,6 +67,7 @@ export class WorkOrdersService {
       .from('work_orders')
       .select(`
         *,
+        board:boards(id, asm_number, internal_g_number, description),
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
         tickets(count)
       `);
@@ -69,6 +105,7 @@ export class WorkOrdersService {
       .from('work_orders')
       .select(`
         *,
+        board:boards(id, asm_number, internal_g_number, description),
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
         tickets(
           *,
@@ -91,6 +128,7 @@ export class WorkOrdersService {
       .eq('id', id)
       .select(`
         *,
+        board:boards(id, asm_number, internal_g_number, description),
         created_by_user:users!work_orders_created_by_fkey(id, full_name)
       `)
       .single();
@@ -142,6 +180,36 @@ export class WorkOrdersService {
     }
     
     return data;
+  }
+
+  /**
+   * Returns the latest (most recently created) work order's highest serial range end
+   * for a given board. Used for UI suggestions.
+   */
+  async getLatestSerialRangeEnd(boardId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('work_orders')
+      .select('id, created_at, serial_ranges')
+      .eq('board_id', boardId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    for (const wo of data || []) {
+      const latestEnd = this.extractMaxSerialEnd(wo.serial_ranges);
+      if (latestEnd) {
+        return {
+          latest_end: latestEnd,
+          work_order_id: wo.id,
+          created_at: wo.created_at,
+        };
+      }
+    }
+
+    return { latest_end: null };
   }
 }
 

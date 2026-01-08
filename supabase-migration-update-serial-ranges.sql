@@ -35,3 +35,6 @@ CREATE INDEX idx_work_orders_serial_ranges ON public.work_orders USING GIN (seri
 --   {"start": "2345678W", "end": "2345900W"}
 -- ]
 
+
+
+

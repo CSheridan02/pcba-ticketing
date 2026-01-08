@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
+import { BoardSelectDialog, type BoardSummary } from '@/components/BoardSelectDialog';
 import { Plus, Search, PlayCircle, Pencil, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -24,11 +25,11 @@ export default function WorkOrdersPage() {
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<any>(null);
   const [newWorkOrder, setNewWorkOrder] = useState({
     work_order_number: '',
-    asm_number: '',
-    description: '',
+    board_id: '',
     quantity: '',
     status: 'Not Started',
   });
+  const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [newSerialRanges, setNewSerialRanges] = useState<Array<{start: string, end: string}>>([{start: '', end: ''}]);
   const [editWorkOrder, setEditWorkOrder] = useState({
     work_order_number: '',
@@ -63,11 +64,11 @@ export default function WorkOrdersPage() {
       setIsCreateDialogOpen(false);
       setNewWorkOrder({
         work_order_number: '',
-        asm_number: '',
-        description: '',
+        board_id: '',
         quantity: '',
         status: 'Not Started',
       });
+      setSelectedBoard(null);
       setNewSerialRanges([{start: '', end: ''}]);
     },
   });
@@ -98,8 +99,7 @@ export default function WorkOrdersPage() {
     
     const workOrderData: any = {
       work_order_number: newWorkOrder.work_order_number,
-      asm_number: newWorkOrder.asm_number,
-      description: newWorkOrder.description,
+      board_id: newWorkOrder.board_id,
       quantity: parseInt(newWorkOrder.quantity),
       status: newWorkOrder.status,
     };
@@ -247,22 +247,29 @@ export default function WorkOrdersPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="asm_number">ASM #</Label>
-                  <Input
-                    id="asm_number"
-                    placeholder="ASM902831"
-                    value={newWorkOrder.asm_number}
-                    onChange={(e) => setNewWorkOrder({ ...newWorkOrder, asm_number: e.target.value })}
+                  <Label>Board</Label>
+                  <BoardSelectDialog
+                    selectedBoard={selectedBoard}
+                    onSelect={(board) => {
+                      setSelectedBoard(board);
+                      setNewWorkOrder({ ...newWorkOrder, board_id: board.id });
+                    }}
                   />
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Input
-                    id="description"
-                    placeholder="Description of the work order"
-                    value={newWorkOrder.description}
-                    onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })}
-                  />
+                  {selectedBoard && (
+                    <div className="mt-2 text-xs text-gray-600 space-y-1">
+                      <div>
+                        <span className="font-medium">ASM:</span> {selectedBoard.asm_number}
+                      </div>
+                      {selectedBoard.internal_g_number && (
+                        <div>
+                          <span className="font-medium">G#:</span> {selectedBoard.internal_g_number}
+                        </div>
+                      )}
+                      <div className="truncate">
+                        <span className="font-medium">Description:</span> {selectedBoard.description}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="quantity">Quantity</Label>
@@ -353,7 +360,7 @@ export default function WorkOrdersPage() {
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateWorkOrder} disabled={createMutation.isPending}>
+                <Button onClick={handleCreateWorkOrder} disabled={createMutation.isPending || !newWorkOrder.board_id}>
                   {createMutation.isPending ? 'Creating...' : 'Create'}
                 </Button>
               </DialogFooter>

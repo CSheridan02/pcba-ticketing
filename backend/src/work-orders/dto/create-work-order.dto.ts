@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class SerialRange {
@@ -14,13 +14,8 @@ export class CreateWorkOrderDto {
   @IsNotEmpty()
   work_order_number: string;
 
-  @IsString()
-  @IsNotEmpty()
-  asm_number: string;
-
-  @IsString()
-  @IsNotEmpty()
-  description: string;
+  @IsUUID()
+  board_id: string;
 
   @IsNumber()
   quantity: number;

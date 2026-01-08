@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Settings, LogOut, Menu, X } from 'lucide-react';
+import { LayoutGrid, Settings, LogOut, Menu, X } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
 
 interface LayoutProps {
@@ -48,6 +48,19 @@ export function Layout({ children }: LayoutProps) {
               >
                 Work Orders
               </Link>
+              {profile?.role === 'admin' && (
+                <Link
+                  to="/boards"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                    location.pathname.startsWith('/boards')
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  Boards
+                </Link>
+              )}
               {profile?.role === 'admin' && (
                 <Link
                   to="/settings"
@@ -105,6 +118,22 @@ export function Layout({ children }: LayoutProps) {
               >
                 Work Orders
               </Link>
+              {profile?.role === 'admin' && (
+                <Link
+                  to="/boards"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    location.pathname.startsWith('/boards')
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    Boards
+                  </div>
+                </Link>
+              )}
               {profile?.role === 'admin' && (
                 <Link
                   to="/settings"
