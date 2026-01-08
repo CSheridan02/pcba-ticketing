@@ -33,10 +33,7 @@ export class WorkOrdersController {
 
   @Get('serial-suggestion')
   getSerialSuggestion(@Query('board_id') boardId?: string) {
-    if (!boardId) {
-      return { latest_end: null };
-    }
-    return this.workOrdersService.getLatestSerialRangeEnd(boardId);
+    return this.workOrdersService.getSerialSuggestion(boardId);
   }
 
   @Get(':id')

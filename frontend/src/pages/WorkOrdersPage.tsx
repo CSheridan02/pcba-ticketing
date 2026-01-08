@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
@@ -55,6 +55,108 @@ export default function WorkOrdersPage() {
     queryKey: ['active-work-orders'],
     queryFn: () => api.getActiveWorkOrders(),
   });
+
+  const { data: createSerialSuggestion } = useQuery({
+    queryKey: ['serial-suggestion', newWorkOrder.board_id],
+    queryFn: () => api.getSerialSuggestion(newWorkOrder.board_id),
+    enabled: !!newWorkOrder.board_id,
+  });
+
+  const createSuggestedStart = useMemo(() => {
+    const latestEnd = createSerialSuggestion?.latest_end;
+    if (!latestEnd) return null;
+
+    const m = latestEnd.trim().toUpperCase().match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+
+    const prevNumStr = m[1];
+    const suffix = m[2];
+    const prevNum = parseInt(prevNumStr, 10);
+    if (!Number.isFinite(prevNum)) return null;
+
+    const startNum = prevNum + 1;
+    const width = prevNumStr.length;
+
+    return `${String(startNum).padStart(width, '0')}${suffix}`;
+  }, [createSerialSuggestion?.latest_end]);
+
+  const createSuggestedEnd = useMemo(() => {
+    if (!createSuggestedStart) return null;
+    const qty = parseInt(newWorkOrder.quantity, 10);
+    if (!Number.isFinite(qty) || qty <= 0) return null;
+
+    const m = createSuggestedStart.match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+    const startNumStr = m[1];
+    const suffix = m[2];
+    const startNum = parseInt(startNumStr, 10);
+    if (!Number.isFinite(startNum)) return null;
+
+    const endNum = startNum + qty - 1;
+    const width = startNumStr.length;
+    return `${String(endNum).padStart(width, '0')}${suffix}`;
+  }, [createSuggestedStart, newWorkOrder.quantity]);
+
+  const createSuggestionMessage = useMemo(() => {
+    const qty = parseInt(newWorkOrder.quantity, 10);
+    if (!newWorkOrder.board_id) return null;
+    if (!createSerialSuggestion || createSerialSuggestion.latest_end == null) {
+      return 'No previous serial ranges found to base a suggestion on.';
+    }
+    if (!Number.isFinite(qty) || qty <= 0) return 'Enter a quantity to see the suggested end.';
+    return null;
+  }, [createSerialSuggestion, newWorkOrder.board_id, newWorkOrder.quantity]);
+
+  const { data: editSerialSuggestion } = useQuery({
+    queryKey: ['serial-suggestion', selectedWorkOrder?.board_id],
+    queryFn: () => api.getSerialSuggestion(selectedWorkOrder.board_id),
+    enabled: !!selectedWorkOrder?.board_id && isEditDialogOpen,
+  });
+
+  const editSuggestedStart = useMemo(() => {
+    const latestEnd = editSerialSuggestion?.latest_end;
+    if (!latestEnd) return null;
+
+    const m = latestEnd.trim().toUpperCase().match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+
+    const prevNumStr = m[1];
+    const suffix = m[2];
+    const prevNum = parseInt(prevNumStr, 10);
+    if (!Number.isFinite(prevNum)) return null;
+
+    const startNum = prevNum + 1;
+    const width = prevNumStr.length;
+
+    return `${String(startNum).padStart(width, '0')}${suffix}`;
+  }, [editSerialSuggestion?.latest_end]);
+
+  const editSuggestedEnd = useMemo(() => {
+    if (!editSuggestedStart) return null;
+    const qty = parseInt(editWorkOrder.quantity, 10);
+    if (!Number.isFinite(qty) || qty <= 0) return null;
+
+    const m = editSuggestedStart.match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+    const startNumStr = m[1];
+    const suffix = m[2];
+    const startNum = parseInt(startNumStr, 10);
+    if (!Number.isFinite(startNum)) return null;
+
+    const endNum = startNum + qty - 1;
+    const width = startNumStr.length;
+    return `${String(endNum).padStart(width, '0')}${suffix}`;
+  }, [editSuggestedStart, editWorkOrder.quantity]);
+
+  const editSuggestionMessage = useMemo(() => {
+    const qty = parseInt(editWorkOrder.quantity, 10);
+    if (!selectedWorkOrder?.board_id) return null;
+    if (!editSerialSuggestion || editSerialSuggestion.latest_end == null) {
+      return 'No previous serial ranges found to base a suggestion on.';
+    }
+    if (!Number.isFinite(qty) || qty <= 0) return 'Enter a quantity to see the suggested end.';
+    return null;
+  }, [editSerialSuggestion, editWorkOrder.quantity, selectedWorkOrder?.board_id]);
 
   const createMutation = useMutation({
     mutationFn: api.createWorkOrder,
@@ -351,6 +453,24 @@ export default function WorkOrdersPage() {
                       )}
                     </div>
                   ))}
+                  {createSuggestedStart && (
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div>
+                        Suggested Start: <span className="font-mono">{createSuggestedStart}</span>
+                      </div>
+                      {createSuggestedEnd && (
+                        <div>
+                          Suggested End: <span className="font-mono">{createSuggestedEnd}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!createSuggestedStart && createSuggestionMessage && (
+                    <p className="text-xs text-gray-500">{createSuggestionMessage}</p>
+                  )}
+                  {createSuggestedStart && !createSuggestedEnd && createSuggestionMessage && (
+                    <p className="text-xs text-gray-500">{createSuggestionMessage}</p>
+                  )}
                   <p className="text-xs text-gray-500">
                     Format: 7 digits + W (e.g., 1234567W - 1234890W)
                   </p>
@@ -482,6 +602,24 @@ export default function WorkOrdersPage() {
                     )}
                   </div>
                 ))}
+                {editSuggestedStart && (
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div>
+                      Suggested Start: <span className="font-mono">{editSuggestedStart}</span>
+                    </div>
+                    {editSuggestedEnd && (
+                      <div>
+                        Suggested End: <span className="font-mono">{editSuggestedEnd}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!editSuggestedStart && editSuggestionMessage && (
+                  <p className="text-xs text-gray-500">{editSuggestionMessage}</p>
+                )}
+                {editSuggestedStart && !editSuggestedEnd && editSuggestionMessage && (
+                  <p className="text-xs text-gray-500">{editSuggestionMessage}</p>
+                )}
                 <p className="text-xs text-gray-500">
                   Format: 7 digits + W (e.g., 1234567W - 1234890W)
                 </p>

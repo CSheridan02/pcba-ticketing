@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
@@ -53,6 +53,57 @@ export default function WorkOrderDetailsPage() {
     queryFn: () => api.getWorkOrder(id!),
     enabled: !!id,
   });
+
+  const { data: serialSuggestion } = useQuery({
+    queryKey: ['serial-suggestion', workOrder?.board_id],
+    queryFn: () => api.getSerialSuggestion(workOrder.board_id),
+    enabled: !!workOrder?.board_id && isEditWorkOrderOpen,
+  });
+
+  const suggestedStart = useMemo(() => {
+    const latestEnd = serialSuggestion?.latest_end;
+    if (!latestEnd) return null;
+
+    const m = latestEnd.trim().toUpperCase().match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+
+    const prevNumStr = m[1];
+    const suffix = m[2];
+    const prevNum = parseInt(prevNumStr, 10);
+    if (!Number.isFinite(prevNum)) return null;
+
+    const startNum = prevNum + 1;
+    const width = prevNumStr.length;
+
+    return `${String(startNum).padStart(width, '0')}${suffix}`;
+  }, [serialSuggestion?.latest_end]);
+
+  const suggestedEnd = useMemo(() => {
+    if (!suggestedStart) return null;
+    const qty = parseInt(editWorkOrder.quantity, 10);
+    if (!Number.isFinite(qty) || qty <= 0) return null;
+
+    const m = suggestedStart.match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+    const startNumStr = m[1];
+    const suffix = m[2];
+    const startNum = parseInt(startNumStr, 10);
+    if (!Number.isFinite(startNum)) return null;
+
+    const endNum = startNum + qty - 1;
+    const width = startNumStr.length;
+    return `${String(endNum).padStart(width, '0')}${suffix}`;
+  }, [editWorkOrder.quantity, suggestedStart]);
+
+  const suggestionMessage = useMemo(() => {
+    const qty = parseInt(editWorkOrder.quantity, 10);
+    if (!workOrder?.board_id) return null;
+    if (!serialSuggestion || serialSuggestion.latest_end == null) {
+      return 'No previous serial ranges found to base a suggestion on.';
+    }
+    if (!Number.isFinite(qty) || qty <= 0) return 'Enter a quantity to see the suggested end.';
+    return null;
+  }, [editWorkOrder.quantity, serialSuggestion, workOrder?.board_id]);
 
   const { data: areas = [] } = useQuery({
     queryKey: ['areas'],
@@ -485,6 +536,24 @@ export default function WorkOrderDetailsPage() {
                   </div>
                 ))}
                 
+                {suggestedStart && (
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div>
+                      Suggested Start: <span className="font-mono">{suggestedStart}</span>
+                    </div>
+                    {suggestedEnd && (
+                      <div>
+                        Suggested End: <span className="font-mono">{suggestedEnd}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!suggestedStart && suggestionMessage && (
+                  <p className="text-xs text-gray-500">{suggestionMessage}</p>
+                )}
+                {suggestedStart && !suggestedEnd && suggestionMessage && (
+                  <p className="text-xs text-gray-500">{suggestionMessage}</p>
+                )}
                 <p className="text-xs text-gray-500">
                   Format: 7 digits + W (e.g., 1234567W - 1234890W)
                 </p>

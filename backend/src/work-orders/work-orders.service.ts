@@ -211,5 +211,41 @@ export class WorkOrdersService {
 
     return { latest_end: null };
   }
+
+  /**
+   * Same as getLatestSerialRangeEnd(boardId) but supports fallback to global latest end
+   * when a specific board has no serial history.
+   */
+  async getSerialSuggestion(boardId?: string) {
+    if (boardId) {
+      const boardScoped = await this.getLatestSerialRangeEnd(boardId);
+      if (boardScoped.latest_end) {
+        return { ...boardScoped, scope: 'board' as const };
+      }
+    }
+
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('work_orders')
+      .select('id, created_at, serial_ranges')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    for (const wo of data || []) {
+      const latestEnd = this.extractMaxSerialEnd(wo.serial_ranges);
+      if (latestEnd) {
+        return {
+          latest_end: latestEnd,
+          work_order_id: wo.id,
+          created_at: wo.created_at,
+          scope: 'global' as const,
+        };
+      }
+    }
+
+    return { latest_end: null, scope: 'none' as const };
+  }
 }
 

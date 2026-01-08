@@ -97,6 +97,18 @@ export const api = {
     return response.json();
   },
 
+  async getSerialSuggestion(boardId: string) {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    params.append('board_id', boardId);
+    const response = await fetch(`${API_URL}/work-orders/serial-suggestion?${params.toString()}`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch serial suggestion');
+    return response.json() as Promise<{ latest_end: string | null }>;
+  },
+
   // Tickets
   async getTickets(workOrderId?: string) {
     const headers = await getAuthHeaders();
