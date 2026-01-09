@@ -4,7 +4,8 @@
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('admin', 'line_operator');
 CREATE TYPE work_order_status AS ENUM ('Not Started', 'Active', 'Completed');
-CREATE TYPE ticket_priority AS ENUM ('Low', 'Medium', 'High');
+CREATE TYPE ticket_impact AS ENUM ('Low', 'Medium', 'High');
+CREATE TYPE ticket_status AS ENUM ('Unresolved', 'Under Investigation', 'In Progress', 'Blocked', 'Resolved');
 
 -- Create users table (extends auth.users)
 CREATE TABLE public.users (
@@ -38,10 +39,20 @@ CREATE TABLE public.tickets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_number TEXT NOT NULL UNIQUE,
   work_order_id UUID NOT NULL REFERENCES public.work_orders(id) ON DELETE CASCADE,
-  priority ticket_priority NOT NULL DEFAULT 'Medium',
+  impact ticket_impact NOT NULL DEFAULT 'Medium',
+  status ticket_status NOT NULL DEFAULT 'Unresolved',
   area_id UUID NOT NULL REFERENCES public.areas(id),
   description TEXT NOT NULL,
   submitted_by UUID NOT NULL REFERENCES public.users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create ticket comments table
+CREATE TABLE public.ticket_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES public.tickets(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  comment TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -53,12 +64,16 @@ CREATE INDEX idx_tickets_work_order_id ON public.tickets(work_order_id);
 CREATE INDEX idx_tickets_area_id ON public.tickets(area_id);
 CREATE INDEX idx_tickets_submitted_by ON public.tickets(submitted_by);
 CREATE INDEX idx_tickets_created_at ON public.tickets(created_at DESC);
+CREATE INDEX idx_tickets_status ON public.tickets(status);
+CREATE INDEX idx_ticket_comments_ticket_id ON public.ticket_comments(ticket_id);
+CREATE INDEX idx_ticket_comments_created_at ON public.ticket_comments(created_at ASC);
 
 -- Enable Row Level Security
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.work_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ticket_comments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view all users" ON public.users
@@ -117,6 +132,35 @@ CREATE POLICY "Users can update own tickets" ON public.tickets
 
 CREATE POLICY "Admins can update any ticket" ON public.tickets
   FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- RLS Policies for ticket_comments table
+CREATE POLICY "Anyone can view ticket comments" ON public.ticket_comments
+  FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can create ticket comments" ON public.ticket_comments
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Users can update own ticket comments" ON public.ticket_comments
+  FOR UPDATE USING (user_id = auth.uid());
+
+CREATE POLICY "Admins can update any ticket comment" ON public.ticket_comments
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+CREATE POLICY "Users can delete own ticket comments" ON public.ticket_comments
+  FOR DELETE USING (user_id = auth.uid());
+
+CREATE POLICY "Admins can delete any ticket comment" ON public.ticket_comments
+  FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role = 'admin'

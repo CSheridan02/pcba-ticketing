@@ -158,6 +158,28 @@ export const api = {
     return response.json();
   },
 
+  async getTicketComments(ticketId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/tickets/${ticketId}/comments`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch ticket comments');
+    return response.json();
+  },
+
+  async addTicketComment(ticketId: string, comment: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ comment }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to add ticket comment');
+    return response.json();
+  },
+
   async uploadTicketImages(files: File[], onProgress?: (progress: number) => void) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

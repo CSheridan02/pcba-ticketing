@@ -3,6 +3,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { CreateTicketCommentDto } from './dto/create-ticket-comment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -25,6 +26,16 @@ export class TicketsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.ticketsService.findOne(id);
+  }
+
+  @Get(':id/comments')
+  listComments(@Param('id') id: string) {
+    return this.ticketsService.listComments(id);
+  }
+
+  @Post(':id/comments')
+  addComment(@Param('id') id: string, @Body() body: CreateTicketCommentDto, @Request() req) {
+    return this.ticketsService.addComment(id, body.comment, req.user.userId);
   }
 
   @Patch(':id')

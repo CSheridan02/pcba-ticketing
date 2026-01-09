@@ -11,7 +11,7 @@ export class CreateTicketDto {
 
   @IsEnum(['Low', 'Medium', 'High'])
   @IsOptional()
-  priority?: string;
+  impact?: string;
 
   @IsString()
   @IsNotEmpty()

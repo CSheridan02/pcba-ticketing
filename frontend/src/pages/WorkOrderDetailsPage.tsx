@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import { ImageUpload } from '@/components/ImageUpload';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
@@ -26,15 +27,20 @@ export default function WorkOrderDetailsPage() {
   const [isEditTicketOpen, setIsEditTicketOpen] = useState(false);
   const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
   const [isEditWorkOrderOpen, setIsEditWorkOrderOpen] = useState(false);
+  const [isViewTicketOpen, setIsViewTicketOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [viewTicket, setViewTicket] = useState<any>(null);
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [ticketSort, setTicketSort] = useState<'newest' | 'oldest' | 'impact_desc' | 'impact_asc' | 'status' | 'ticket_number'>('newest');
+  const [newComment, setNewComment] = useState('');
   const [newTicket, setNewTicket] = useState({
     description: '',
-    priority: 'Medium',
+    impact: 'Medium',
     area_id: '',
   });
   const [editTicket, setEditTicket] = useState({
     description: '',
-    priority: 'Medium',
+    impact: 'Medium',
     area_id: '',
   });
   const [editWorkOrder, setEditWorkOrder] = useState({
@@ -47,6 +53,10 @@ export default function WorkOrderDetailsPage() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  const statusOrder = ['Unresolved', 'Under Investigation', 'In Progress', 'Blocked', 'Resolved'];
+  const impactOrder: Record<string, number> = { Low: 1, Medium: 2, High: 3 };
+  const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
   const { data: workOrder, isLoading } = useQuery({
     queryKey: ['work-order', id],
@@ -126,7 +136,7 @@ export default function WorkOrderDetailsPage() {
       setIsCreateTicketOpen(false);
       setNewTicket({
         description: '',
-        priority: 'Medium',
+        impact: 'Medium',
         area_id: '',
       });
       setSelectedImages([]);
@@ -149,6 +159,75 @@ export default function WorkOrderDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
       setIsDeleteTicketOpen(false);
       setSelectedTicket(null);
+    },
+  });
+
+  const displayTickets = useMemo(() => {
+    const tickets: any[] = workOrder?.tickets || [];
+
+    const q = ticketSearch.trim().toLowerCase();
+    const filtered = q
+      ? tickets.filter((t) => {
+          const haystack = [
+            t.ticket_number,
+            stripHtml(t.description),
+            t.area?.name,
+            t.submitted_by_user?.full_name,
+            t.status,
+            t.impact,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(q);
+        })
+      : tickets;
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (ticketSort === 'ticket_number') {
+        return String(a.ticket_number || '').localeCompare(String(b.ticket_number || ''));
+      }
+      if (ticketSort === 'status') {
+        return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+      }
+      if (ticketSort === 'impact_desc') {
+        return (impactOrder[b.impact] || 0) - (impactOrder[a.impact] || 0);
+      }
+      if (ticketSort === 'impact_asc') {
+        return (impactOrder[a.impact] || 0) - (impactOrder[b.impact] || 0);
+      }
+      if (ticketSort === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      // newest
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return sorted;
+  }, [workOrder?.tickets, ticketSearch, ticketSort]);
+
+  const { data: ticketComments = [], isLoading: isCommentsLoading } = useQuery({
+    queryKey: ['ticket-comments', viewTicket?.id],
+    queryFn: () => api.getTicketComments(viewTicket.id),
+    enabled: !!viewTicket?.id && isViewTicketOpen,
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: ({ ticketId, comment }: { ticketId: string; comment: string }) =>
+      api.addTicketComment(ticketId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-comments', viewTicket?.id] });
+      setNewComment('');
+    },
+  });
+
+  const updateTicketStatusMutation = useMutation({
+    mutationFn: ({ ticketId, status }: { ticketId: string; status: string }) =>
+      api.updateTicket(ticketId, { status }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setViewTicket((prev: any) => (prev ? { ...prev, status: variables.status } : prev));
     },
   });
 
@@ -202,10 +281,16 @@ export default function WorkOrderDetailsPage() {
     setSelectedTicket(ticket);
     setEditTicket({
       description: ticket.description,
-      priority: ticket.priority,
+      impact: ticket.impact,
       area_id: ticket.area_id,
     });
     setIsEditTicketOpen(true);
+  };
+
+  const handleViewTicket = (ticket: any) => {
+    setViewTicket(ticket);
+    setNewComment('');
+    setIsViewTicketOpen(true);
   };
 
   const handleUpdateTicket = () => {
@@ -300,13 +385,24 @@ export default function WorkOrderDetailsPage() {
     );
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getImpactColor = (impact: string) => {
     const colors: Record<string, string> = {
       'High': 'bg-orange-100 text-orange-800',
       'Medium': 'bg-yellow-100 text-yellow-800',
       'Low': 'bg-gray-100 text-gray-800',
     };
-    return colors[priority] || colors['Medium'];
+    return colors[impact] || colors['Medium'];
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      'Unresolved': 'bg-red-100 text-red-800',
+      'Under Investigation': 'bg-purple-100 text-purple-800',
+      'In Progress': 'bg-blue-100 text-blue-800',
+      'Blocked': 'bg-orange-100 text-orange-800',
+      'Resolved': 'bg-green-100 text-green-800',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -602,6 +698,27 @@ export default function WorkOrderDetailsPage() {
                 <h2 className="text-2xl font-bold print:text-xl">
                   Tickets ({workOrder.tickets?.length || 0})
                 </h2>
+                <div className="flex items-center gap-2 print:hidden">
+                  <Input
+                    placeholder="Search tickets..."
+                    value={ticketSearch}
+                    onChange={(e) => setTicketSearch(e.target.value)}
+                    className="w-56"
+                  />
+                  <Select value={ticketSort} onValueChange={(v) => setTicketSort(v as any)}>
+                    <SelectTrigger className="w-52">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest</SelectItem>
+                      <SelectItem value="oldest">Oldest</SelectItem>
+                      <SelectItem value="impact_desc">Impact (High → Low)</SelectItem>
+                      <SelectItem value="impact_asc">Impact (Low → High)</SelectItem>
+                      <SelectItem value="status">Status</SelectItem>
+                      <SelectItem value="ticket_number">Ticket #</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
                 <DialogTrigger asChild>
                   <Button className="print:hidden">
@@ -626,10 +743,10 @@ export default function WorkOrderDetailsPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="priority">Priority</Label>
+                      <Label htmlFor="impact">Impact</Label>
                       <Select
-                        value={newTicket.priority}
-                        onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}
+                        value={newTicket.impact}
+                        onValueChange={(value) => setNewTicket({ ...newTicket, impact: value })}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -713,10 +830,10 @@ export default function WorkOrderDetailsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-priority">Priority</Label>
+                    <Label htmlFor="edit-impact">Impact</Label>
                     <Select
-                      value={editTicket.priority}
-                      onValueChange={(value) => setEditTicket({ ...editTicket, priority: value })}
+                      value={editTicket.impact}
+                      onValueChange={(value) => setEditTicket({ ...editTicket, impact: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -793,8 +910,12 @@ export default function WorkOrderDetailsPage() {
               </div>
             ) : (
               <div className="space-y-4 print:space-y-6 print:px-2">
-                {workOrder.tickets.map((ticket: any) => (
-                  <Card key={ticket.id} className="border-l-4 border-l-primary print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4">
+                {displayTickets.map((ticket: any) => (
+                  <Card
+                    key={ticket.id}
+                    className="border-l-4 border-l-primary cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
+                    onClick={() => handleViewTicket(ticket)}
+                  >
                     <CardContent className="p-4 print:p-5">
                       <div className="space-y-3">
                         {/* Header with ticket info and badges */}
@@ -804,8 +925,11 @@ export default function WorkOrderDetailsPage() {
                               <span className="font-mono text-sm font-medium">
                                 {ticket.ticket_number}
                               </span>
-                              <Badge className={getPriorityColor(ticket.priority)}>
-                                {ticket.priority}
+                              <Badge className={getImpactColor(ticket.impact)}>
+                                {ticket.impact}
+                              </Badge>
+                              <Badge className={getStatusColor(ticket.status)}>
+                                {ticket.status}
                               </Badge>
                               <Badge variant="outline" className="bg-blue-50 text-blue-700">
                                 {ticket.area?.name}
@@ -901,6 +1025,161 @@ export default function WorkOrderDetailsPage() {
                 ))}
               </div>
             )}
+
+            {/* Ticket Details + Comments Modal */}
+            <Dialog
+              open={isViewTicketOpen}
+              onOpenChange={(open) => {
+                setIsViewTicketOpen(open);
+                if (!open) setViewTicket(null);
+              }}
+            >
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Ticket Details</DialogTitle>
+                  <DialogDescription>
+                    {viewTicket?.ticket_number ? `Ticket ${viewTicket.ticket_number}` : 'View ticket details'}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {!viewTicket ? (
+                  <div className="text-sm text-gray-500">No ticket selected.</div>
+                ) : (
+                  <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+                    {/* Metadata */}
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-medium">{viewTicket.ticket_number}</span>
+                        <Badge className={getImpactColor(viewTicket.impact)}>{viewTicket.impact}</Badge>
+                        <Badge className={getStatusColor(viewTicket.status)}>{viewTicket.status}</Badge>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                          {viewTicket.area?.name}
+                        </Badge>
+                      </div>
+
+                      <div className="text-sm text-gray-600">
+                        Submitted by: {viewTicket.submitted_by_user?.full_name || 'Unknown'} •{' '}
+                        {new Date(viewTicket.created_at).toLocaleString()}
+                      </div>
+
+                      {/* Admin-only status editor */}
+                      {profile?.role === 'admin' && (
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="ticket-status">Status</Label>
+                            <Select
+                              value={viewTicket.status}
+                              onValueChange={(value) =>
+                                updateTicketStatusMutation.mutate({ ticketId: viewTicket.id, status: value })
+                              }
+                            >
+                              <SelectTrigger id="ticket-status">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Unresolved">Unresolved</SelectItem>
+                                <SelectItem value="Under Investigation">Under Investigation</SelectItem>
+                                <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Blocked">Blocked</SelectItem>
+                                <SelectItem value="Resolved">Resolved</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-gray-700">Description</div>
+                      <div
+                        className="text-gray-800 ticket-description border rounded-md p-3 bg-white"
+                        dangerouslySetInnerHTML={{ __html: viewTicket.description }}
+                      />
+                    </div>
+
+                    {/* Images */}
+                    {viewTicket.images && viewTicket.images.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-700">Attachments</div>
+                        <div className="flex flex-wrap gap-2">
+                          {viewTicket.images.map((url: string, idx: number) => (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Attachment ${idx + 1}`}
+                                className="h-24 w-24 object-cover rounded border hover:opacity-80 transition-opacity"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                <ExternalLink className="h-5 w-5 text-white" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comments */}
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-gray-700">Comments</div>
+
+                      <div className="space-y-2">
+                        {isCommentsLoading ? (
+                          <div className="text-sm text-gray-500">Loading comments...</div>
+                        ) : ticketComments.length === 0 ? (
+                          <div className="text-sm text-gray-500">No comments yet.</div>
+                        ) : (
+                          ticketComments.map((c: any) => (
+                            <div key={c.id} className="border rounded-md p-3 bg-gray-50">
+                              <div className="text-xs text-gray-600 mb-1">
+                                {c.user?.full_name || 'Unknown'} • {new Date(c.created_at).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{c.comment}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="new-comment">Add a comment</Label>
+                        <Textarea
+                          id="new-comment"
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Type your comment..."
+                          rows={4}
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => {
+                              if (!viewTicket?.id) return;
+                              const trimmed = newComment.trim();
+                              if (!trimmed) return;
+                              addCommentMutation.mutate({ ticketId: viewTicket.id, comment: trimmed });
+                            }}
+                            disabled={addCommentMutation.isPending || !newComment.trim()}
+                          >
+                            {addCommentMutation.isPending ? 'Posting...' : 'Post Comment'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsViewTicketOpen(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Photo Documentation Section - Only visible when printing */}
             {workOrder.tickets?.some((t: any) => t.images && t.images.length > 0) && (

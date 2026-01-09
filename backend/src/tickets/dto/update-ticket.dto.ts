@@ -7,7 +7,11 @@ export class UpdateTicketDto {
 
   @IsEnum(['Low', 'Medium', 'High'])
   @IsOptional()
-  priority?: string;
+  impact?: string;
+
+  @IsEnum(['Unresolved', 'Under Investigation', 'In Progress', 'Blocked', 'Resolved'])
+  @IsOptional()
+  status?: string;
 
   @IsString()
   @IsOptional()

@@ -75,6 +75,11 @@ export class TicketsService {
   async update(id: string, updateTicketDto: UpdateTicketDto, userId: string, userRole: string) {
     const supabase = this.supabaseService.getClient();
     
+    // Only admins can change ticket status
+    if (updateTicketDto?.status && userRole !== 'admin') {
+      throw new ForbiddenException('Only admins can change ticket status');
+    }
+    
     // Admins can edit any ticket, operators can only edit their own
     if (userRole !== 'admin') {
       // First, check if the ticket exists and get the owner
@@ -102,6 +107,60 @@ export class TicketsService {
         area:areas(id, name),
         submitted_by_user:users!tickets_submitted_by_fkey(id, full_name),
         work_order:work_orders(id, work_order_number)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async listComments(ticketId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    // Ensure ticket exists (clearer error than FK failures elsewhere)
+    const { data: ticket, error: ticketErr } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('id', ticketId)
+      .single();
+
+    if (ticketErr || !ticket) throw new NotFoundException('Ticket not found');
+
+    const { data, error } = await supabase
+      .from('ticket_comments')
+      .select(`
+        *,
+        user:users!ticket_comments_user_id_fkey(id, full_name)
+      `)
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data;
+  }
+
+  async addComment(ticketId: string, comment: string, userId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    // Ensure ticket exists (clearer error than FK failures)
+    const { data: ticket, error: ticketErr } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('id', ticketId)
+      .single();
+
+    if (ticketErr || !ticket) throw new NotFoundException('Ticket not found');
+
+    const { data, error } = await supabase
+      .from('ticket_comments')
+      .insert([{
+        ticket_id: ticketId,
+        user_id: userId,
+        comment,
+      }])
+      .select(`
+        *,
+        user:users!ticket_comments_user_id_fkey(id, full_name)
       `)
       .single();
 
