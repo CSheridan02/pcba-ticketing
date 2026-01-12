@@ -38,7 +38,7 @@ export default function BoardsPage() {
     asm_number: '',
     internal_g_number: '',
     description: '',
-    reference_image_url: '',
+    reference_image_url: null as string | null,
   });
 
   const [openBoardId, setOpenBoardId] = useState<string | null>(null);
@@ -209,7 +209,7 @@ export default function BoardsPage() {
       asm_number: board.asm_number || '',
       internal_g_number: board.internal_g_number || '',
       description: board.description || '',
-      reference_image_url: board.reference_image_url || '',
+      reference_image_url: board.reference_image_url ?? null,
     });
     setEditReferenceFile(null);
     setEditReferencePreview(null);
@@ -223,7 +223,9 @@ export default function BoardsPage() {
       setIsUploadingReference(!!editReferenceFile);
       setReferenceUploadProgress(0);
 
-      let reference_image_url: string | undefined = editBoard.reference_image_url?.trim() || undefined;
+      // If user removed the image, we must send explicit null so Supabase clears the column.
+      let reference_image_url: string | null | undefined =
+        editBoard.reference_image_url === null ? null : (editBoard.reference_image_url?.trim() || undefined);
       if (editReferenceFile) {
         const res = await api.uploadBoardReferenceImage(editReferenceFile, setReferenceUploadProgress);
         reference_image_url = res.url;
@@ -807,7 +809,7 @@ export default function BoardsPage() {
                 {(editReferencePreview || editBoard.reference_image_url) ? (
                   <div className="flex items-start gap-3">
                     <img
-                      src={editReferencePreview || editBoard.reference_image_url}
+                      src={editReferencePreview || editBoard.reference_image_url || ''}
                       alt="Reference"
                       className="h-20 w-20 object-cover rounded border"
                     />
@@ -836,7 +838,7 @@ export default function BoardsPage() {
                           onClick={() => {
                             setEditReferenceFile(null);
                             setEditReferencePreview(null);
-                            setEditBoard({ ...editBoard, reference_image_url: '' });
+                            setEditBoard({ ...editBoard, reference_image_url: null });
                           }}
                         >
                           Remove

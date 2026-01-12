@@ -15,7 +15,7 @@ export class UpdateBoardDto {
 
   @IsString()
   @IsOptional()
-  reference_image_url?: string;
+  reference_image_url?: string | null;
 }
 
 
