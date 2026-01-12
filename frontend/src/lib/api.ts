@@ -97,6 +97,51 @@ export const api = {
     return response.json();
   },
 
+  async syncWorkOrderAlerts(workOrderId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${workOrderId}/alerts/sync`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to sync work order alerts');
+    return response.json() as Promise<{ inserted: number }>;
+  },
+
+  async copyWorkOrderAlerts(workOrderId: string, boardAlertIds: string[]) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${workOrderId}/alerts/copy`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ board_alert_ids: boardAlertIds }),
+    });
+    if (!response.ok) throw new Error('Failed to copy selected work order alerts');
+    return response.json() as Promise<{ inserted: number }>;
+  },
+
+  async getWorkOrderAlerts(workOrderId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${workOrderId}/alerts`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch work order alerts');
+    return response.json() as Promise<any[]>;
+  },
+
+  async deleteWorkOrderAlerts(workOrderId: string, ids?: string[]) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${workOrderId}/alerts/delete`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error('Failed to delete work order alerts');
+    return response.json() as Promise<{ ok: boolean }>;
+  },
+
   async getSerialSuggestion(boardId: string) {
     const headers = await getAuthHeaders();
     const params = new URLSearchParams();

@@ -11,9 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function BoardsPage() {
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [search, setSearch] = useState('');
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -40,6 +42,12 @@ export default function BoardsPage() {
   });
 
   const [openBoardId, setOpenBoardId] = useState<string | null>(null);
+  const [manageAlertsOpen, setManageAlertsOpen] = useState(false);
+  const [manageWorkOrder, setManageWorkOrder] = useState<any>(null);
+  const [selectedWorkOrderAlertIds, setSelectedWorkOrderAlertIds] = useState<string[]>([]);
+  const [addAlertsOpen, setAddAlertsOpen] = useState(false);
+  const [addWorkOrder, setAddWorkOrder] = useState<any>(null);
+  const [selectedBoardAlertIds, setSelectedBoardAlertIds] = useState<string[]>([]);
 
   const { data: boards = [], isLoading } = useQuery({
     queryKey: ['boards', search],
@@ -55,6 +63,12 @@ export default function BoardsPage() {
     queryKey: ['board', openBoardId],
     queryFn: () => api.getBoard(openBoardId!),
     enabled: !!openBoardId,
+  });
+
+  const { data: workOrderAlerts = [], isLoading: isLoadingWorkOrderAlerts } = useQuery({
+    queryKey: ['work-order-alerts', manageWorkOrder?.id],
+    queryFn: () => api.getWorkOrderAlerts(manageWorkOrder.id),
+    enabled: !!manageWorkOrder?.id && manageAlertsOpen,
   });
 
   const createBoardMutation = useMutation({
@@ -135,6 +149,30 @@ export default function BoardsPage() {
     mutationFn: ({ alertId }: { alertId: string; boardId: string }) => api.deleteBoardAlert(alertId),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['board', vars.boardId] });
+    },
+  });
+
+  const copyWorkOrderAlertsMutation = useMutation({
+    mutationFn: ({ workOrderId, boardAlertIds }: { workOrderId: string; boardAlertIds: string[] }) =>
+      api.copyWorkOrderAlerts(workOrderId, boardAlertIds),
+    onSuccess: (data) => {
+      if (openBoardId) queryClient.invalidateQueries({ queryKey: ['board', openBoardId] });
+      alert(`Alerts added: ${data.inserted}`);
+      setAddAlertsOpen(false);
+      setAddWorkOrder(null);
+      setSelectedBoardAlertIds([]);
+    },
+  });
+
+  const deleteWorkOrderAlertsMutation = useMutation({
+    mutationFn: ({ workOrderId, ids }: { workOrderId: string; ids?: string[] }) =>
+      api.deleteWorkOrderAlerts(workOrderId, ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order-alerts', manageWorkOrder?.id] });
+      alert('Alerts removed.');
+      setSelectedWorkOrderAlertIds([]);
+      setManageAlertsOpen(false);
+      setManageWorkOrder(null);
     },
   });
 
@@ -451,7 +489,43 @@ export default function BoardsPage() {
                                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                   {(isOpen ? boardDetails?.work_orders || [] : []).map((wo: any) => (
                                     <div key={wo.id} className="border rounded-md p-3">
-                                      <div className="text-sm font-medium">{wo.work_order_number}</div>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="text-sm font-medium">{wo.work_order_number}</div>
+                                        {profile?.role === 'admin' && (
+                                          <div className="flex gap-2">
+                                            {(boardDetails?.board_alerts?.length || 0) > 0 && (
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={copyWorkOrderAlertsMutation.isPending}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setAddWorkOrder(wo);
+                                                  setSelectedBoardAlertIds([]);
+                                                  setAddAlertsOpen(true);
+                                                }}
+                                              >
+                                                Add Alerts
+                                              </Button>
+                                            )}
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              disabled={deleteWorkOrderAlertsMutation.isPending}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setManageWorkOrder(wo);
+                                                setSelectedWorkOrderAlertIds([]);
+                                                setManageAlertsOpen(true);
+                                              }}
+                                            >
+                                              Remove Alerts
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
                                       <div className="text-xs text-gray-500">
                                         {wo.status} • Qty {wo.quantity}
                                       </div>
@@ -460,6 +534,231 @@ export default function BoardsPage() {
                                 </div>
                               )}
                             </div>
+
+                            {/* Add alerts modal */}
+                            <Dialog
+                              open={addAlertsOpen}
+                              onOpenChange={(open) => {
+                                setAddAlertsOpen(open);
+                                if (!open) {
+                                  setAddWorkOrder(null);
+                                  setSelectedBoardAlertIds([]);
+                                }
+                              }}
+                            >
+                              <DialogContent className="max-w-3xl">
+                                <DialogHeader>
+                                  <DialogTitle>Add Alerts</DialogTitle>
+                                  <DialogDescription>
+                                    {addWorkOrder?.work_order_number
+                                      ? `Work Order ${addWorkOrder.work_order_number} — select board alerts to copy`
+                                      : 'Select board alerts to add.'}
+                                  </DialogDescription>
+                                </DialogHeader>
+
+                                {(boardDetails?.board_alerts?.length || 0) === 0 ? (
+                                  <div className="text-sm text-gray-500">This board has no alerts configured.</div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                                    <div className="flex items-center justify-between">
+                                      <div className="text-sm text-gray-700">
+                                        {selectedBoardAlertIds.length} selected
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          const allIds = (boardDetails?.board_alerts || []).map((a: any) => a.id);
+                                          if (selectedBoardAlertIds.length === allIds.length) {
+                                            setSelectedBoardAlertIds([]);
+                                          } else {
+                                            setSelectedBoardAlertIds(allIds);
+                                          }
+                                        }}
+                                      >
+                                        {selectedBoardAlertIds.length === (boardDetails?.board_alerts || []).length
+                                          ? 'Clear all'
+                                          : 'Select all'}
+                                      </Button>
+                                    </div>
+
+                                    {(boardDetails?.board_alerts || []).map((a: any) => {
+                                      const checked = selectedBoardAlertIds.includes(a.id);
+                                      return (
+                                        <label
+                                          key={a.id}
+                                          className="flex gap-3 border rounded-md p-3 bg-white cursor-pointer"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => {
+                                              setSelectedBoardAlertIds((prev) =>
+                                                prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id],
+                                              );
+                                            }}
+                                          />
+                                          <div
+                                            className="rich-text flex-1"
+                                            dangerouslySetInnerHTML={{ __html: a.content }}
+                                          />
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                <DialogFooter>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setAddAlertsOpen(false);
+                                      setAddWorkOrder(null);
+                                      setSelectedBoardAlertIds([]);
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    disabled={
+                                      copyWorkOrderAlertsMutation.isPending ||
+                                      !addWorkOrder?.id ||
+                                      selectedBoardAlertIds.length === 0
+                                    }
+                                    onClick={() => {
+                                      if (!addWorkOrder?.id) return;
+                                      copyWorkOrderAlertsMutation.mutate({
+                                        workOrderId: addWorkOrder.id,
+                                        boardAlertIds: selectedBoardAlertIds,
+                                      });
+                                    }}
+                                  >
+                                    {copyWorkOrderAlertsMutation.isPending ? 'Adding…' : 'Add selected'}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+
+                            {/* Remove alerts modal */}
+                            <Dialog
+                              open={manageAlertsOpen}
+                              onOpenChange={(open) => {
+                                setManageAlertsOpen(open);
+                                if (!open) {
+                                  setManageWorkOrder(null);
+                                  setSelectedWorkOrderAlertIds([]);
+                                }
+                              }}
+                            >
+                              <DialogContent className="max-w-3xl">
+                                <DialogHeader>
+                                  <DialogTitle>Remove Alerts</DialogTitle>
+                                  <DialogDescription>
+                                    {manageWorkOrder?.work_order_number
+                                      ? `Work Order ${manageWorkOrder.work_order_number}`
+                                      : 'Select alerts to remove.'}
+                                  </DialogDescription>
+                                </DialogHeader>
+
+                                {isLoadingWorkOrderAlerts ? (
+                                  <div className="text-sm text-gray-500">Loading alerts…</div>
+                                ) : workOrderAlerts.length === 0 ? (
+                                  <div className="text-sm text-gray-500">This work order has no alerts.</div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                                    <div className="flex items-center justify-between">
+                                      <div className="text-sm text-gray-700">
+                                        {selectedWorkOrderAlertIds.length} selected
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (selectedWorkOrderAlertIds.length === workOrderAlerts.length) {
+                                            setSelectedWorkOrderAlertIds([]);
+                                          } else {
+                                            setSelectedWorkOrderAlertIds(workOrderAlerts.map((a: any) => a.id));
+                                          }
+                                        }}
+                                      >
+                                        {selectedWorkOrderAlertIds.length === workOrderAlerts.length ? 'Clear all' : 'Select all'}
+                                      </Button>
+                                    </div>
+
+                                    {workOrderAlerts.map((a: any) => {
+                                      const checked = selectedWorkOrderAlertIds.includes(a.id);
+                                      return (
+                                        <label
+                                          key={a.id}
+                                          className="flex gap-3 border rounded-md p-3 bg-white cursor-pointer"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => {
+                                              setSelectedWorkOrderAlertIds((prev) =>
+                                                prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id],
+                                              );
+                                            }}
+                                          />
+                                          <div
+                                            className="rich-text flex-1"
+                                            dangerouslySetInnerHTML={{ __html: a.content }}
+                                          />
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                <DialogFooter>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setManageAlertsOpen(false);
+                                      setManageWorkOrder(null);
+                                      setSelectedWorkOrderAlertIds([]);
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    disabled={
+                                      deleteWorkOrderAlertsMutation.isPending ||
+                                      !manageWorkOrder?.id ||
+                                      workOrderAlerts.length === 0
+                                    }
+                                    onClick={() => {
+                                      if (!manageWorkOrder?.id) return;
+                                      if (!window.confirm('Remove ALL alerts from this work order?')) return;
+                                      deleteWorkOrderAlertsMutation.mutate({ workOrderId: manageWorkOrder.id });
+                                    }}
+                                  >
+                                    Remove all
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    disabled={
+                                      deleteWorkOrderAlertsMutation.isPending ||
+                                      !manageWorkOrder?.id ||
+                                      selectedWorkOrderAlertIds.length === 0
+                                    }
+                                    onClick={() => {
+                                      if (!manageWorkOrder?.id) return;
+                                      deleteWorkOrderAlertsMutation.mutate({
+                                        workOrderId: manageWorkOrder.id,
+                                        ids: selectedWorkOrderAlertIds,
+                                      });
+                                    }}
+                                  >
+                                    Remove selected
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                           </div>
                         </CollapsibleContent>
                       </div>

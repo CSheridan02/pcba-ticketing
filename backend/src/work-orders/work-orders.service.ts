@@ -87,6 +87,140 @@ export class WorkOrdersService {
     return this.findOne(data.id);
   }
 
+  /**
+   * Sync board alerts onto an existing work order.
+   * This is useful for older work orders created before board alerts existed.
+   * Current behavior: replace any existing work_order_alerts with the board's current alerts.
+   */
+  async syncAlertsFromBoard(workOrderId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: wo, error: woErr } = await supabase
+      .from('work_orders')
+      .select('id, board_id')
+      .eq('id', workOrderId)
+      .single();
+
+    if (woErr || !wo) throw new NotFoundException('Work order not found');
+
+    const { data: boardAlerts, error: boardAlertsError } = await supabase
+      .from('board_alerts')
+      .select('id, content, created_at')
+      .eq('board_id', wo.board_id)
+      .order('created_at', { ascending: true });
+
+    if (boardAlertsError) throw boardAlertsError;
+
+    // Clear existing alerts for idempotency
+    const { error: deleteErr } = await supabase
+      .from('work_order_alerts')
+      .delete()
+      .eq('work_order_id', workOrderId);
+    if (deleteErr) throw deleteErr;
+
+    const payload = (boardAlerts || []).map((a: any) => ({
+      work_order_id: workOrderId,
+      board_alert_id: a.id,
+      content: a.content,
+    }));
+
+    if (payload.length > 0) {
+      const { error: insertErr } = await supabase.from('work_order_alerts').insert(payload);
+      if (insertErr) throw insertErr;
+    }
+
+    return { inserted: payload.length };
+  }
+
+  async listAlerts(workOrderId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: wo, error: woErr } = await supabase
+      .from('work_orders')
+      .select('id')
+      .eq('id', workOrderId)
+      .single();
+    if (woErr || !wo) throw new NotFoundException('Work order not found');
+
+    const { data, error } = await supabase
+      .from('work_order_alerts')
+      .select('*')
+      .eq('work_order_id', workOrderId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async deleteAlerts(workOrderId: string, ids?: string[]) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: wo, error: woErr } = await supabase
+      .from('work_orders')
+      .select('id')
+      .eq('id', workOrderId)
+      .single();
+    if (woErr || !wo) throw new NotFoundException('Work order not found');
+
+    let q = supabase.from('work_order_alerts').delete().eq('work_order_id', workOrderId);
+    if (ids && ids.length > 0) {
+      q = q.in('id', ids);
+    }
+
+    const { error } = await q;
+    if (error) throw error;
+    return { ok: true };
+  }
+
+  /**
+   * Copy selected board alerts onto a work order (append-style, idempotent per board_alert_id).
+   * - Only board alerts belonging to the work order's board_id are allowed.
+   * - If an alert from that board was already copied, we replace that copied row (delete+insert) to keep content in sync.
+   */
+  async copySelectedBoardAlerts(workOrderId: string, boardAlertIds: string[]) {
+    const supabase = this.supabaseService.getClient();
+
+    const ids = (boardAlertIds || []).map((x) => String(x)).filter(Boolean);
+    if (ids.length === 0) return { inserted: 0 };
+
+    const { data: wo, error: woErr } = await supabase
+      .from('work_orders')
+      .select('id, board_id')
+      .eq('id', workOrderId)
+      .single();
+    if (woErr || !wo) throw new NotFoundException('Work order not found');
+
+    const { data: boardAlerts, error: boardAlertsError } = await supabase
+      .from('board_alerts')
+      .select('id, content, created_at, board_id')
+      .eq('board_id', wo.board_id)
+      .in('id', ids)
+      .order('created_at', { ascending: true });
+    if (boardAlertsError) throw boardAlertsError;
+
+    const selected = boardAlerts || [];
+    if (selected.length === 0) return { inserted: 0 };
+
+    // Remove existing copies for these board_alert_ids to avoid duplicates and to refresh content.
+    const { error: deleteErr } = await supabase
+      .from('work_order_alerts')
+      .delete()
+      .eq('work_order_id', workOrderId)
+      .in('board_alert_id', selected.map((a: any) => a.id));
+    if (deleteErr) throw deleteErr;
+
+    const payload = selected.map((a: any) => ({
+      work_order_id: workOrderId,
+      board_alert_id: a.id,
+      content: a.content,
+    }));
+
+    const { error: insertErr } = await supabase.from('work_order_alerts').insert(payload);
+    if (insertErr) throw insertErr;
+
+    return { inserted: payload.length };
+  }
+
   async findAll(search?: string, status?: string, sortBy?: string) {
     const supabase = this.supabaseService.getClient();
     let query = supabase
