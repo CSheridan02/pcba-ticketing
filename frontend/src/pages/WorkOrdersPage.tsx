@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { api } from '@/lib/api';
 import { BoardSelectDialog, type BoardSummary } from '@/components/BoardSelectDialog';
 import { Plus, Search, PlayCircle, Pencil, Trash2, X } from 'lucide-react';
@@ -31,6 +32,8 @@ export default function WorkOrdersPage() {
   });
   const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [newSerialRanges, setNewSerialRanges] = useState<Array<{start: string, end: string}>>([{start: '', end: ''}]);
+  const [newHasExtraLabels, setNewHasExtraLabels] = useState(false);
+  const [newExtraLabelRange, setNewExtraLabelRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [editWorkOrder, setEditWorkOrder] = useState({
     work_order_number: '',
     asm_number: '',
@@ -39,6 +42,8 @@ export default function WorkOrdersPage() {
     status: '',
   });
   const [editSerialRanges, setEditSerialRanges] = useState<Array<{start: string, end: string}>>([{start: '', end: ''}]);
+  const [editHasExtraLabels, setEditHasExtraLabels] = useState(false);
+  const [editExtraLabelRange, setEditExtraLabelRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -178,6 +183,8 @@ export default function WorkOrdersPage() {
       });
       setSelectedBoard(null);
       setNewSerialRanges([{start: '', end: ''}]);
+      setNewHasExtraLabels(false);
+      setNewExtraLabelRange({ start: '', end: '' });
     },
   });
 
@@ -216,7 +223,19 @@ export default function WorkOrdersPage() {
     if (validRanges.length > 0) {
       workOrderData.serial_ranges = validRanges;
     }
-    
+
+    // Extra labels (optional)
+    workOrderData.has_extra_labels = newHasExtraLabels;
+    if (newHasExtraLabels) {
+      const start = (newExtraLabelRange.start || '').trim().toUpperCase();
+      const end = (newExtraLabelRange.end || '').trim().toUpperCase();
+      if (!start || !end) {
+        alert('Please enter the extra labels start and end range (or uncheck "Has extra labels?").');
+        return;
+      }
+      workOrderData.extra_label_range = { start, end };
+    }
+
     createMutation.mutate(workOrderData);
   };
 
@@ -248,6 +267,12 @@ export default function WorkOrdersPage() {
     // Load serial ranges or default to one empty range
     const ranges = workOrder.serial_ranges || [];
     setEditSerialRanges(ranges.length > 0 ? ranges : [{start: '', end: ''}]);
+    const hasExtras = !!workOrder.has_extra_labels || !!workOrder.extra_label_range;
+    setEditHasExtraLabels(hasExtras);
+    setEditExtraLabelRange({
+      start: (workOrder.extra_label_range?.start || '').toString().toUpperCase(),
+      end: (workOrder.extra_label_range?.end || '').toString().toUpperCase(),
+    });
     setIsEditDialogOpen(true);
   };
 
@@ -268,6 +293,20 @@ export default function WorkOrdersPage() {
         updateData.serial_ranges = validRanges;
       } else {
         updateData.serial_ranges = [];
+      }
+
+      // Extra labels (optional)
+      updateData.has_extra_labels = editHasExtraLabels;
+      if (editHasExtraLabels) {
+        const start = (editExtraLabelRange.start || '').trim().toUpperCase();
+        const end = (editExtraLabelRange.end || '').trim().toUpperCase();
+        if (!start || !end) {
+          alert('Please enter the extra labels start and end range (or uncheck "Has extra labels?").');
+          return;
+        }
+        updateData.extra_label_range = { start, end };
+      } else {
+        updateData.extra_label_range = null;
       }
       
       updateMutation.mutate({
@@ -291,6 +330,13 @@ export default function WorkOrdersPage() {
     const updated = [...editSerialRanges];
     updated[index][field] = value.toUpperCase();
     setEditSerialRanges(updated);
+  };
+
+  const formatRange = (range: any) => {
+    const start = (range?.start || '').toString();
+    const end = (range?.end || '').toString();
+    if (!start || !end) return null;
+    return `${start} - ${end}`;
   };
 
   const handleDeleteClick = (workOrder: any) => {
@@ -491,6 +537,48 @@ export default function WorkOrdersPage() {
                   <p className="text-xs text-gray-500">
                     Format: 7 digits + W (e.g., 1234567W - 1234890W)
                   </p>
+
+                  {/* Extra Labels */}
+                  <div className="border-t pt-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="new_has_extra_labels"
+                        checked={newHasExtraLabels}
+                        onCheckedChange={(v) => {
+                          const checked = v === true;
+                          setNewHasExtraLabels(checked);
+                          if (!checked) setNewExtraLabelRange({ start: '', end: '' });
+                        }}
+                      />
+                      <Label htmlFor="new_has_extra_labels" className="cursor-pointer">
+                        Has extra labels?
+                      </Label>
+                    </div>
+                    {newHasExtraLabels && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="new_extra_labels_start">Extra Start</Label>
+                          <Input
+                            id="new_extra_labels_start"
+                            placeholder="1234891W"
+                            value={newExtraLabelRange.start}
+                            onChange={(e) => setNewExtraLabelRange((p) => ({ ...p, start: e.target.value.toUpperCase() }))}
+                            maxLength={8}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="new_extra_labels_end">Extra End</Label>
+                          <Input
+                            id="new_extra_labels_end"
+                            placeholder="1234894W"
+                            value={newExtraLabelRange.end}
+                            onChange={(e) => setNewExtraLabelRange((p) => ({ ...p, end: e.target.value.toUpperCase() }))}
+                            maxLength={8}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -640,6 +728,48 @@ export default function WorkOrdersPage() {
                 <p className="text-xs text-gray-500">
                   Format: 7 digits + W (e.g., 1234567W - 1234890W)
                 </p>
+
+                {/* Extra Labels */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="edit_has_extra_labels"
+                      checked={editHasExtraLabels}
+                      onCheckedChange={(v) => {
+                        const checked = v === true;
+                        setEditHasExtraLabels(checked);
+                        if (!checked) setEditExtraLabelRange({ start: '', end: '' });
+                      }}
+                    />
+                    <Label htmlFor="edit_has_extra_labels" className="cursor-pointer">
+                      Has extra labels?
+                    </Label>
+                  </div>
+                  {editHasExtraLabels && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit_extra_labels_start">Extra Start</Label>
+                        <Input
+                          id="edit_extra_labels_start"
+                          placeholder="1234891W"
+                          value={editExtraLabelRange.start}
+                          onChange={(e) => setEditExtraLabelRange((p) => ({ ...p, start: e.target.value.toUpperCase() }))}
+                          maxLength={8}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit_extra_labels_end">Extra End</Label>
+                        <Input
+                          id="edit_extra_labels_end"
+                          placeholder="1234894W"
+                          value={editExtraLabelRange.end}
+                          onChange={(e) => setEditExtraLabelRange((p) => ({ ...p, end: e.target.value.toUpperCase() }))}
+                          maxLength={8}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -856,17 +986,22 @@ export default function WorkOrdersPage() {
                       </td>
                       <td className="p-4 text-gray-700">{wo.asm_number}</td>
                       <td className="p-4 text-gray-700">
-                        {wo.serial_ranges && wo.serial_ranges.length > 0 ? (
-                          <div className="text-sm font-mono space-y-1">
-                            {wo.serial_ranges.map((range: any, idx: number) => (
+                        <div className="text-sm font-mono space-y-1">
+                          {wo.serial_ranges && wo.serial_ranges.length > 0 ? (
+                            wo.serial_ranges.map((range: any, idx: number) => (
                               <div key={idx}>
                                 {range.start} - {range.end}
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">-</span>
-                        )}
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                          {formatRange(wo.extra_label_range) && (
+                            <div className="text-blue-600" title="Extras">
+                              {formatRange(wo.extra_label_range)}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4 text-gray-700">{wo.description}</td>
                       <td className="p-4 text-gray-700">{wo.quantity}</td>

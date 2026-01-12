@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ImageUpload } from '@/components/ImageUpload';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
@@ -54,6 +55,8 @@ export default function WorkOrderDetailsPage() {
     status: '',
   });
   const [editSerialRanges, setEditSerialRanges] = useState<Array<{start: string, end: string}>>([{start: '', end: ''}]);
+  const [editHasExtraLabels, setEditHasExtraLabels] = useState(false);
+  const [editExtraLabelRange, setEditExtraLabelRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -325,6 +328,12 @@ export default function WorkOrderDetailsPage() {
     // Load serial ranges or default to one empty range
     const ranges = workOrder.serial_ranges || [];
     setEditSerialRanges(ranges.length > 0 ? ranges : [{start: '', end: ''}]);
+    const hasExtras = !!workOrder.has_extra_labels || !!workOrder.extra_label_range;
+    setEditHasExtraLabels(hasExtras);
+    setEditExtraLabelRange({
+      start: (workOrder.extra_label_range?.start || '').toString().toUpperCase(),
+      end: (workOrder.extra_label_range?.end || '').toString().toUpperCase(),
+    });
     setIsEditWorkOrderOpen(true);
   };
 
@@ -345,8 +354,36 @@ export default function WorkOrderDetailsPage() {
     } else {
       updateData.serial_ranges = [];
     }
+
+    // Extra labels (optional)
+    updateData.has_extra_labels = editHasExtraLabels;
+    if (editHasExtraLabels) {
+      const start = (editExtraLabelRange.start || '').trim().toUpperCase();
+      const end = (editExtraLabelRange.end || '').trim().toUpperCase();
+      if (!start || !end) {
+        alert('Please enter the extra labels start and end range (or uncheck "Has extra labels?").');
+        return;
+      }
+      updateData.extra_label_range = { start, end };
+    } else {
+      updateData.extra_label_range = null;
+    }
     
     updateWorkOrderMutation.mutate(updateData);
+  };
+
+  const countSerialRange = (range: any): number => {
+    const startRaw = (range?.start || '').toString().trim().toUpperCase();
+    const endRaw = (range?.end || '').toString().trim().toUpperCase();
+    const m1 = startRaw.match(/^(\d+)([A-Z])$/);
+    const m2 = endRaw.match(/^(\d+)([A-Z])$/);
+    if (!m1 || !m2) return 0;
+    if (m1[2] !== m2[2]) return 0;
+    const a = parseInt(m1[1], 10);
+    const b = parseInt(m2[1], 10);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+    if (b < a) return 0;
+    return b - a + 1;
   };
 
   const addEditSerialRange = () => {
@@ -600,10 +637,18 @@ export default function WorkOrderDetailsPage() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    ({workOrder.serial_ranges.reduce((total: number, range: any) => {
-                      const count = parseInt(range.end.replace('W', '')) - parseInt(range.start.replace('W', '')) + 1;
-                      return total + count;
-                    }, 0)} units total)
+                    ({workOrder.serial_ranges.reduce((total: number, range: any) => total + countSerialRange(range), 0)} units total)
+                  </p>
+                </div>
+              )}
+              {(workOrder.has_extra_labels || workOrder.extra_label_range) && workOrder.extra_label_range?.start && workOrder.extra_label_range?.end && (
+                <div className="md:col-span-2">
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Extra Labels Range</h3>
+                  <p className="text-lg font-semibold font-mono text-blue-600" title="Extras">
+                    {workOrder.extra_label_range.start} - {workOrder.extra_label_range.end}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    ({countSerialRange(workOrder.extra_label_range)} extra labels)
                   </p>
                 </div>
               )}
@@ -854,6 +899,48 @@ export default function WorkOrderDetailsPage() {
                 <p className="text-xs text-gray-500">
                   Format: 7 digits + W (e.g., 1234567W - 1234890W)
                 </p>
+
+                {/* Extra Labels */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="edit_wo_has_extra_labels"
+                      checked={editHasExtraLabels}
+                      onCheckedChange={(v) => {
+                        const checked = v === true;
+                        setEditHasExtraLabels(checked);
+                        if (!checked) setEditExtraLabelRange({ start: '', end: '' });
+                      }}
+                    />
+                    <Label htmlFor="edit_wo_has_extra_labels" className="cursor-pointer">
+                      Has extra labels?
+                    </Label>
+                  </div>
+                  {editHasExtraLabels && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit_wo_extra_labels_start">Extra Start</Label>
+                        <Input
+                          id="edit_wo_extra_labels_start"
+                          placeholder="1234891W"
+                          value={editExtraLabelRange.start}
+                          onChange={(e) => setEditExtraLabelRange((p) => ({ ...p, start: e.target.value.toUpperCase() }))}
+                          maxLength={8}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit_wo_extra_labels_end">Extra End</Label>
+                        <Input
+                          id="edit_wo_extra_labels_end"
+                          placeholder="1234894W"
+                          value={editExtraLabelRange.end}
+                          onChange={(e) => setEditExtraLabelRange((p) => ({ ...p, end: e.target.value.toUpperCase() }))}
+                          maxLength={8}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <DialogFooter>

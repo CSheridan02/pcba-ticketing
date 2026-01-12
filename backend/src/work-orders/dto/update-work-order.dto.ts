@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested, IsBoolean, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class SerialRange {
@@ -31,5 +31,14 @@ export class UpdateWorkOrderDto {
   @ValidateNested({ each: true })
   @Type(() => SerialRange)
   serial_ranges?: SerialRange[];
+
+  @IsBoolean()
+  @IsOptional()
+  has_extra_labels?: boolean;
+
+  @ValidateIf((o) => o.has_extra_labels === true)
+  @ValidateNested()
+  @Type(() => SerialRange)
+  extra_label_range?: SerialRange;
 }
 

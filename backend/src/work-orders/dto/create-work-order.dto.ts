@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsEnum, IsOptional, IsArray, ValidateNested, IsUUID, IsBoolean, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class SerialRange {
@@ -29,5 +29,18 @@ export class CreateWorkOrderDto {
   @ValidateNested({ each: true })
   @Type(() => SerialRange)
   serial_ranges?: SerialRange[];
+
+  /**
+   * Optional printed-label extras range (e.g. last 4 labels).
+   * When has_extra_labels is true, extra_label_range is required.
+   */
+  @IsBoolean()
+  @IsOptional()
+  has_extra_labels?: boolean;
+
+  @ValidateIf((o) => o.has_extra_labels === true)
+  @ValidateNested()
+  @Type(() => SerialRange)
+  extra_label_range?: SerialRange;
 }
 
