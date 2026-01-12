@@ -13,6 +13,15 @@ Follow these steps to set up your Supabase project for the PCBA Ticketing System
    - Region: (select closest to your location)
 5. Click "Create new project"
 
+## Sandbox / Staging Recommendation (for safe testing)
+
+If you want a “sandbox database” to test without touching production, use a **separate Supabase project** (e.g. `pcba-ticketing-sandbox`) and point your `.env` files at it.
+
+- This app relies on **Supabase Auth** + **JWT Secret** + **Storage buckets/policies**, which are project-scoped.
+- Using a separate Postgres schema inside the same project can work, but it’s easy to accidentally hit prod and you’d still share auth/storage.
+
+See `SANDBOX_SETUP.md` for a complete walkthrough.
+
 ## Step 2: Run the Database Schema
 
 1. Once your project is created, go to the SQL Editor in your Supabase dashboard
@@ -27,6 +36,8 @@ This will create:
 - Indexes for performance
 - Helper functions for generating IDs
 - Default areas (Assembly, Quality Control, Packaging)
+
+> Note: This repo also includes `supabase-migration-*.sql` files for newer features. If you are setting up a fresh project, apply the schema first, then apply migrations. See `SANDBOX_SETUP.md` for the current recommended order.
 
 ## Step 3: Get Your API Keys
 

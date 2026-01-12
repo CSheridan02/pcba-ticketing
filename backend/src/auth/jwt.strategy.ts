@@ -10,10 +10,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private authService: AuthService,
   ) {
+    const jwtSecret = configService.get<string>('supabase.jwtSecret');
+    if (!jwtSecret) {
+      // Without this, passport-jwt will validate using an empty secret and you'll only see 401s.
+      throw new Error(
+        'Missing JWT secret. Set JWT_SECRET in backend/.env to your Supabase project JWT secret (Settings → API → JWT Settings).',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('supabase.jwtSecret') || '',
+      secretOrKey: jwtSecret,
     });
   }
 

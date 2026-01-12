@@ -105,7 +105,7 @@ export class BoardsController {
       throw new BadRequestException(`File too large: ${file.originalname}`);
     }
 
-    return this.boardsService.uploadReferenceImage(file, req.user.userId);
+    return this.boardsService.uploadReferenceImage(file, req.user.id);
   }
 }
 

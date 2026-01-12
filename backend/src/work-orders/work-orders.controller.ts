@@ -16,7 +16,7 @@ export class WorkOrdersController {
   @Post()
   @Roles('admin')
   create(@Body() createWorkOrderDto: CreateWorkOrderDto, @Request() req) {
-    return this.workOrdersService.create(createWorkOrderDto, req.user.userId);
+    return this.workOrdersService.create(createWorkOrderDto, req.user.id);
   }
 
   @Get()

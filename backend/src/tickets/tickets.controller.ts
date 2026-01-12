@@ -15,7 +15,7 @@ export class TicketsController {
 
   @Post()
   create(@Body() createTicketDto: CreateTicketDto, @Request() req) {
-    return this.ticketsService.create(createTicketDto, req.user.userId);
+    return this.ticketsService.create(createTicketDto, req.user.id);
   }
 
   @Get()
@@ -35,17 +35,17 @@ export class TicketsController {
 
   @Post(':id/comments')
   addComment(@Param('id') id: string, @Body() body: CreateTicketCommentDto, @Request() req) {
-    return this.ticketsService.addComment(id, body.comment, req.user.userId);
+    return this.ticketsService.addComment(id, body.comment, req.user.id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto, @Request() req) {
-    return this.ticketsService.update(id, updateTicketDto, req.user.userId, req.user.role);
+    return this.ticketsService.update(id, updateTicketDto, req.user.id, req.user.role);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
-    return this.ticketsService.remove(id, req.user.userId, req.user.role);
+    return this.ticketsService.remove(id, req.user.id, req.user.role);
   }
 
   @Post('upload')
@@ -71,7 +71,7 @@ export class TicketsController {
       }
     }
 
-    return this.ticketsService.uploadImages(files, req.user.userId);
+    return this.ticketsService.uploadImages(files, req.user.id);
   }
 }
 

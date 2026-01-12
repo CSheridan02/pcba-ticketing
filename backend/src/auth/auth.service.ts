@@ -30,6 +30,7 @@ export class AuthService {
       email: user.email,
       full_name: profile.full_name,
       role: profile.role,
+      access_granted: Boolean(profile.access_granted),
     };
   }
 
