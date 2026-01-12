@@ -4,6 +4,8 @@ import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { DeleteWorkOrderAlertsDto } from './dto/delete-work-order-alerts.dto';
 import { CopyWorkOrderAlertsDto } from './dto/copy-work-order-alerts.dto';
+import { UpdateWorkOrderStatusDto } from './dto/update-work-order-status.dto';
+import { UpdateWorkOrderQualityResultDto } from './dto/update-work-order-quality-result.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -24,13 +26,14 @@ export class WorkOrdersController {
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('sortBy') sortBy?: string,
+    @Request() req?: any,
   ) {
-    return this.workOrdersService.findAll(search, status, sortBy);
+    return this.workOrdersService.findAll(search, status, sortBy, req?.user?.role);
   }
 
   @Get('active')
-  getActiveWorkOrders() {
-    return this.workOrdersService.getActiveWorkOrders();
+  getActiveWorkOrders(@Request() req) {
+    return this.workOrdersService.getActiveWorkOrders(req?.user?.role);
   }
 
   @Get('serial-suggestion')
@@ -39,8 +42,8 @@ export class WorkOrdersController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.workOrdersService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.workOrdersService.findOne(id, req?.user?.role);
   }
 
   @Post(':id/alerts/sync')
@@ -70,6 +73,18 @@ export class WorkOrdersController {
   @Roles('admin')
   update(@Param('id') id: string, @Body() updateWorkOrderDto: UpdateWorkOrderDto) {
     return this.workOrdersService.update(id, updateWorkOrderDto);
+  }
+
+  @Patch(':id/status')
+  @Roles('admin', 'quality')
+  updateStatus(@Param('id') id: string, @Body() body: UpdateWorkOrderStatusDto, @Request() req) {
+    return this.workOrdersService.updateStatus(id, body.status, req?.user?.role);
+  }
+
+  @Patch(':id/quality-result')
+  @Roles('admin', 'quality')
+  updateQualityResult(@Param('id') id: string, @Body() body: UpdateWorkOrderQualityResultDto, @Request() req) {
+    return this.workOrdersService.updateQualityResult(id, body.quality_result, req?.user?.role);
   }
 
   @Delete(':id')

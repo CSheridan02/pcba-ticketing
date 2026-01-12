@@ -458,6 +458,9 @@ export default function WorkOrdersPage() {
                     <SelectContent>
                       <SelectItem value="Not Started">Not Started</SelectItem>
                       <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Production Done">Production Done</SelectItem>
+                      <SelectItem value="Quality Received">Quality Received</SelectItem>
+                      <SelectItem value="Quality Done">Quality Done</SelectItem>
                       <SelectItem value="Completed">Completed</SelectItem>
                     </SelectContent>
                   </Select>
@@ -649,6 +652,9 @@ export default function WorkOrdersPage() {
                   <SelectContent>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Production Done">Production Done</SelectItem>
+                    <SelectItem value="Quality Received">Quality Received</SelectItem>
+                    <SelectItem value="Quality Done">Quality Done</SelectItem>
                     <SelectItem value="Completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>

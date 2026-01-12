@@ -5,7 +5,7 @@ import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,30 +24,49 @@ export default function WorkOrderDetailsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const isQuality = profile?.role === 'quality';
+  const canEditWorkOrderWorkflow = isAdmin || isQuality;
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
+  const [isCreateQualityTicketOpen, setIsCreateQualityTicketOpen] = useState(false);
   const [isEditTicketOpen, setIsEditTicketOpen] = useState(false);
   const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
   const [isEditWorkOrderOpen, setIsEditWorkOrderOpen] = useState(false);
   const [isViewTicketOpen, setIsViewTicketOpen] = useState(false);
+  const [ticketTab, setTicketTab] = useState<'operator' | 'quality'>('operator');
   const [showAllAlerts, setShowAllAlerts] = useState(false);
   const [isReferenceImageOpen, setIsReferenceImageOpen] = useState(false);
   const [isAlertOverflowing, setIsAlertOverflowing] = useState(false);
   const alertPreviewRef = useRef<HTMLDivElement | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [viewTicket, setViewTicket] = useState<any>(null);
+  const [viewQualityTicket, setViewQualityTicket] = useState<any>(null);
+  const [isViewQualityTicketOpen, setIsViewQualityTicketOpen] = useState(false);
   const [ticketSearch, setTicketSearch] = useState('');
   const [ticketSort, setTicketSort] = useState<'newest' | 'oldest' | 'impact_desc' | 'impact_asc' | 'status' | 'ticket_number'>('newest');
   const [newComment, setNewComment] = useState('');
+  const [newQualityComment, setNewQualityComment] = useState('');
   const [newTicket, setNewTicket] = useState({
     description: '',
     impact: 'Medium',
     area_id: '',
+  });
+  const [newQualityTicket, setNewQualityTicket] = useState({
+    description: '',
+    serial_numbers_input: '',
   });
   const [editTicket, setEditTicket] = useState({
     description: '',
     impact: 'Medium',
     area_id: '',
   });
+  const [editQualityTicket, setEditQualityTicket] = useState({
+    description: '',
+    serial_numbers_input: '',
+  });
+  const [isEditQualityTicketOpen, setIsEditQualityTicketOpen] = useState(false);
+  const [isDeleteQualityTicketOpen, setIsDeleteQualityTicketOpen] = useState(false);
+  const [selectedQualityTicket, setSelectedQualityTicket] = useState<any>(null);
   const [editWorkOrder, setEditWorkOrder] = useState({
     asm_number: '',
     description: '',
@@ -58,12 +77,36 @@ export default function WorkOrderDetailsPage() {
   const [editHasExtraLabels, setEditHasExtraLabels] = useState(false);
   const [editExtraLabelRange, setEditExtraLabelRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [selectedQualityImages, setSelectedQualityImages] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isQualityUploading, setIsQualityUploading] = useState(false);
+  const [qualityUploadProgress, setQualityUploadProgress] = useState(0);
 
   const statusOrder = ['Unresolved', 'Under Investigation', 'In Progress', 'Blocked', 'Resolved'];
   const impactOrder: Record<string, number> = { Low: 1, Medium: 2, High: 3 };
   const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const isPostProductionStatus = (status?: string) =>
+    status === 'Production Done' ||
+    status === 'Quality Received' ||
+    status === 'Quality Done' ||
+    status === 'Completed';
+
+  useEffect(() => {
+    // Default tab: Quality users land on Quality tickets; everyone else defaults to Operator tickets.
+    if (isQuality) {
+      setTicketTab('quality');
+    } else if (!isAdmin) {
+      setTicketTab('operator');
+    }
+  }, [isQuality, isAdmin]);
+
+  useEffect(() => {
+    // Quality tickets don't support impact/status sorting; keep UX predictable.
+    if (ticketTab === 'quality' && (ticketSort === 'impact_desc' || ticketSort === 'impact_asc' || ticketSort === 'status')) {
+      setTicketSort('newest');
+    }
+  }, [ticketTab, ticketSort]);
 
   const { data: workOrder, isLoading } = useQuery({
     queryKey: ['work-order', id],
@@ -128,7 +171,16 @@ export default function WorkOrderDetailsPage() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: (status: string) => api.updateWorkOrder(id!, { status }),
+    mutationFn: (status: string) => api.updateWorkOrderStatus(id!, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['active-work-orders'] });
+    },
+  });
+
+  const updateQualityResultMutation = useMutation({
+    mutationFn: (quality_result: string) => api.updateWorkOrderQualityResult(id!, quality_result),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
@@ -150,6 +202,19 @@ export default function WorkOrderDetailsPage() {
     },
   });
 
+  const createQualityTicketMutation = useMutation({
+    mutationFn: api.createQualityTicket,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setIsCreateQualityTicketOpen(false);
+      setNewQualityTicket({
+        description: '',
+        serial_numbers_input: '',
+      });
+      setSelectedQualityImages([]);
+    },
+  });
+
   const updateTicketMutation = useMutation({
     mutationFn: ({ ticketId, data }: { ticketId: string; data: any }) => 
       api.updateTicket(ticketId, data),
@@ -166,6 +231,25 @@ export default function WorkOrderDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
       setIsDeleteTicketOpen(false);
       setSelectedTicket(null);
+    },
+  });
+
+  const updateQualityTicketMutation = useMutation({
+    mutationFn: ({ ticketId, data }: { ticketId: string; data: any }) =>
+      api.updateQualityTicket(ticketId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setIsEditQualityTicketOpen(false);
+      setSelectedQualityTicket(null);
+    },
+  });
+
+  const deleteQualityTicketMutation = useMutation({
+    mutationFn: (ticketId: string) => api.deleteQualityTicket(ticketId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setIsDeleteQualityTicketOpen(false);
+      setSelectedQualityTicket(null);
     },
   });
 
@@ -214,10 +298,50 @@ export default function WorkOrderDetailsPage() {
     return sorted;
   }, [workOrder?.tickets, ticketSearch, ticketSort]);
 
+  const displayQualityTickets = useMemo(() => {
+    const tickets: any[] = workOrder?.quality_tickets || [];
+    const q = ticketSearch.trim().toLowerCase();
+
+    const filtered = q
+      ? tickets.filter((t) => {
+          const haystack = [
+            t.quality_ticket_number,
+            stripHtml(t.description),
+            Array.isArray(t.serial_numbers) ? t.serial_numbers.join(' ') : '',
+            t.submitted_by_user?.full_name,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(q);
+        })
+      : tickets;
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (ticketSort === 'ticket_number') {
+        return String(a.quality_ticket_number || '').localeCompare(String(b.quality_ticket_number || ''));
+      }
+      if (ticketSort === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      // newest (default)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return sorted;
+  }, [workOrder?.quality_tickets, ticketSearch, ticketSort]);
+
   const { data: ticketComments = [], isLoading: isCommentsLoading } = useQuery({
     queryKey: ['ticket-comments', viewTicket?.id],
     queryFn: () => api.getTicketComments(viewTicket.id),
     enabled: !!viewTicket?.id && isViewTicketOpen,
+  });
+
+  const { data: qualityTicketComments = [], isLoading: isQualityCommentsLoading } = useQuery({
+    queryKey: ['quality-ticket-comments', viewQualityTicket?.id],
+    queryFn: () => api.getQualityTicketComments(viewQualityTicket.id),
+    enabled: !!viewQualityTicket?.id && isViewQualityTicketOpen,
   });
 
   const addCommentMutation = useMutation({
@@ -226,6 +350,15 @@ export default function WorkOrderDetailsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket-comments', viewTicket?.id] });
       setNewComment('');
+    },
+  });
+
+  const addQualityCommentMutation = useMutation({
+    mutationFn: ({ ticketId, comment }: { ticketId: string; comment: string }) =>
+      api.addQualityTicketComment(ticketId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quality-ticket-comments', viewQualityTicket?.id] });
+      setNewQualityComment('');
     },
   });
 
@@ -282,6 +415,88 @@ export default function WorkOrderDetailsPage() {
       setIsUploading(false);
       setUploadProgress(0);
     }
+  };
+
+  const parseSerialNumbers = (raw: string): string[] => {
+    const normalized = (raw || '').replace(/\r/g, '\n');
+    return normalized
+      .split(/[\n,]+/g)
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+  };
+
+  const handleCreateQualityTicket = async () => {
+    const serials = parseSerialNumbers(newQualityTicket.serial_numbers_input);
+    if (!newQualityTicket.description || serials.length === 0) return;
+
+    setIsQualityUploading(true);
+    try {
+      let imageUrls: string[] = [];
+
+      if (selectedQualityImages.length > 0) {
+        setQualityUploadProgress(0);
+        const uploadResult: any = await api.uploadQualityTicketImages(selectedQualityImages, (progress) => {
+          setQualityUploadProgress(progress);
+        });
+        imageUrls = uploadResult.urls || [];
+
+        if (uploadResult.errors && uploadResult.errors.length > 0) {
+          alert(`Warning: ${uploadResult.message}\n\nErrors:\n${uploadResult.errors.join('\n')}`);
+        }
+      }
+
+      createQualityTicketMutation.mutate({
+        work_order_id: id!,
+        description: newQualityTicket.description,
+        serial_numbers: serials,
+        images: imageUrls,
+      });
+    } catch (error: any) {
+      console.error('Error uploading images:', error);
+      alert(`Failed to upload images: ${error.message || 'Please try again.'}`);
+    } finally {
+      setIsQualityUploading(false);
+      setQualityUploadProgress(0);
+    }
+  };
+
+  const handleViewQualityTicket = (ticket: any) => {
+    setViewQualityTicket(ticket);
+    setNewQualityComment('');
+    setIsViewQualityTicketOpen(true);
+  };
+
+  const handleEditQualityClick = (ticket: any) => {
+    setSelectedQualityTicket(ticket);
+    setEditQualityTicket({
+      description: ticket.description || '',
+      serial_numbers_input: Array.isArray(ticket.serial_numbers) ? ticket.serial_numbers.join('\n') : '',
+    });
+    setIsEditQualityTicketOpen(true);
+  };
+
+  const handleUpdateQualityTicket = () => {
+    if (!selectedQualityTicket || !editQualityTicket.description) return;
+    const serials = parseSerialNumbers(editQualityTicket.serial_numbers_input);
+    if (serials.length === 0) return;
+
+    updateQualityTicketMutation.mutate({
+      ticketId: selectedQualityTicket.id,
+      data: {
+        description: editQualityTicket.description,
+        serial_numbers: serials,
+      },
+    });
+  };
+
+  const handleDeleteQualityClick = (ticket: any) => {
+    setSelectedQualityTicket(ticket);
+    setIsDeleteQualityTicketOpen(true);
+  };
+
+  const handleDeleteQualityTicket = () => {
+    if (!selectedQualityTicket) return;
+    deleteQualityTicketMutation.mutate(selectedQualityTicket.id);
   };
 
   const handleEditClick = (ticket: any) => {
@@ -501,13 +716,26 @@ export default function WorkOrderDetailsPage() {
             Back to Work Orders
           </Button>
           <div className="flex flex-col xs:flex-row xs:items-center xs:justify-end gap-2">
+            <Button
+              className="w-full xs:w-auto"
+              onClick={() => {
+                // Admin: create based on selected tab. Quality: quality ticket. Operators: operator ticket.
+                if (isAdmin) {
+                  if (ticketTab === 'quality') setIsCreateQualityTicketOpen(true);
+                  else setIsCreateTicketOpen(true);
+                } else if (isQuality) {
+                  setIsCreateQualityTicketOpen(true);
+                } else {
+                  setIsCreateTicketOpen(true);
+                }
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {isAdmin ? (ticketTab === 'quality' ? 'Create Quality Ticket' : 'Create Ticket') : isQuality ? 'Create Quality Ticket' : 'Create Ticket'}
+            </Button>
+
+            {/* Operator Ticket Create Dialog */}
             <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full xs:w-auto">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Ticket
-                </Button>
-              </DialogTrigger>
               <DialogContent className="max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>Create New Ticket</DialogTitle>
@@ -587,6 +815,75 @@ export default function WorkOrderDetailsPage() {
                     disabled={createTicketMutation.isPending || isUploading || !newTicket.area_id || !newTicket.description}
                   >
                     {isUploading ? 'Uploading...' : createTicketMutation.isPending ? 'Creating...' : 'Create'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Quality Ticket Create Dialog */}
+            <Dialog open={isCreateQualityTicketOpen} onOpenChange={setIsCreateQualityTicketOpen}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Create Quality Ticket</DialogTitle>
+                  <DialogDescription>
+                    Report a quality issue for this work order.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="quality-description">Description</Label>
+                    <RichTextEditor
+                      content={newQualityTicket.description}
+                      onChange={(html) => setNewQualityTicket({ ...newQualityTicket, description: html })}
+                      placeholder="Describe the issue..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="quality-serials">Serial Number(s)</Label>
+                    <Textarea
+                      id="quality-serials"
+                      placeholder="Enter one serial per line (or comma-separated)"
+                      value={newQualityTicket.serial_numbers_input}
+                      onChange={(e) => setNewQualityTicket({ ...newQualityTicket, serial_numbers_input: e.target.value })}
+                      rows={4}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Supports single or multiple serial numbers.
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Images (Optional)</Label>
+                    <ImageUpload
+                      onImagesSelected={setSelectedQualityImages}
+                      maxFiles={50}
+                    />
+                  </div>
+                </div>
+
+                {isQualityUploading && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Uploading images...</span>
+                      <span>{qualityUploadProgress}%</span>
+                    </div>
+                    <Progress value={qualityUploadProgress} className="h-2" />
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateQualityTicketOpen(false)} disabled={isQualityUploading}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateQualityTicket}
+                    disabled={
+                      createQualityTicketMutation.isPending ||
+                      isQualityUploading ||
+                      !newQualityTicket.description ||
+                      parseSerialNumbers(newQualityTicket.serial_numbers_input).length === 0
+                    }
+                  >
+                    {isQualityUploading ? 'Uploading...' : createQualityTicketMutation.isPending ? 'Creating...' : 'Create'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -683,24 +980,70 @@ export default function WorkOrderDetailsPage() {
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
                 <div className="print:hidden">
-                  <Select
-                    value={workOrder.status}
-                    onValueChange={(value) => updateStatusMutation.mutate(value)}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Not Started">Not Started</SelectItem>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {canEditWorkOrderWorkflow ? (
+                    <Select
+                      value={workOrder.status}
+                      onValueChange={(value) => updateStatusMutation.mutate(value)}
+                    >
+                      <SelectTrigger className="w-56">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isQuality ? (
+                          <>
+                            <SelectItem value="Production Done">Production Done</SelectItem>
+                            <SelectItem value="Quality Received">Quality Received</SelectItem>
+                            <SelectItem value="Quality Done">Quality Done</SelectItem>
+                            <SelectItem value="Completed">Completed</SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="Not Started">Not Started</SelectItem>
+                            <SelectItem value="Active">Active</SelectItem>
+                            <SelectItem value="Production Done">Production Done</SelectItem>
+                            <SelectItem value="Quality Received">Quality Received</SelectItem>
+                            <SelectItem value="Quality Done">Quality Done</SelectItem>
+                            <SelectItem value="Completed">Completed</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-lg font-semibold">{workOrder.status}</p>
+                  )}
                 </div>
                 <div className="hidden print:block">
                   <p className="text-lg font-semibold">{workOrder.status}</p>
                 </div>
               </div>
+
+              {isPostProductionStatus(workOrder.status) && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Quality Result</h3>
+                  <div className="print:hidden">
+                    {canEditWorkOrderWorkflow ? (
+                      <Select
+                        value={workOrder.quality_result || 'Hold'}
+                        onValueChange={(value) => updateQualityResultMutation.mutate(value)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Hold">Hold</SelectItem>
+                          <SelectItem value="Pass">Pass</SelectItem>
+                          <SelectItem value="Fail">Fail</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-lg font-semibold">{workOrder.quality_result || 'Hold'}</p>
+                    )}
+                  </div>
+                  <div className="hidden print:block">
+                    <p className="text-lg font-semibold">{workOrder.quality_result || 'Hold'}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Alerts (inline, "in your face") */}
               {alertsCount > 0 && (
@@ -808,17 +1151,20 @@ export default function WorkOrderDetailsPage() {
               </div>
               <div>
                 <Label htmlFor="edit_wo_status">Status</Label>
-                <Select
-                  value={editWorkOrder.status}
-                  onValueChange={(value) => setEditWorkOrder({ ...editWorkOrder, status: value })}
-                >
+                  <Select
+                    value={editWorkOrder.status}
+                    onValueChange={(value) => setEditWorkOrder({ ...editWorkOrder, status: value })}
+                  >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Production Done">Production Done</SelectItem>
+                      <SelectItem value="Quality Received">Quality Received</SelectItem>
+                      <SelectItem value="Quality Done">Quality Done</SelectItem>
+                      <SelectItem value="Completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -983,12 +1329,36 @@ export default function WorkOrderDetailsPage() {
           <Card className="print:shadow-none print:border-0">
             <CardContent className="p-6 print:px-4 print:py-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 print:mb-8">
-                <h2 className="text-2xl font-bold print:text-xl">
-                  Tickets ({workOrder.tickets?.length || 0})
-                </h2>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold print:text-xl">
+                    {ticketTab === 'quality'
+                      ? `Quality Tickets (${workOrder.quality_tickets?.length || 0})`
+                      : `Operator Tickets (${workOrder.tickets?.length || 0})`}
+                  </h2>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2 print:hidden">
+                      <Button
+                        type="button"
+                        variant={ticketTab === 'operator' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTicketTab('operator')}
+                      >
+                        Operator
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={ticketTab === 'quality' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTicketTab('quality')}
+                      >
+                        Quality
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 print:hidden w-full sm:w-auto">
                   <Input
-                    placeholder="Search tickets..."
+                    placeholder={ticketTab === 'quality' ? 'Search quality tickets...' : 'Search tickets...'}
                     value={ticketSearch}
                     onChange={(e) => setTicketSearch(e.target.value)}
                     className="w-full sm:w-56"
@@ -1000,10 +1370,14 @@ export default function WorkOrderDetailsPage() {
                     <SelectContent>
                       <SelectItem value="newest">Newest</SelectItem>
                       <SelectItem value="oldest">Oldest</SelectItem>
-                      <SelectItem value="impact_desc">Impact (High → Low)</SelectItem>
-                      <SelectItem value="impact_asc">Impact (Low → High)</SelectItem>
-                      <SelectItem value="status">Status</SelectItem>
                       <SelectItem value="ticket_number">Ticket #</SelectItem>
+                      {ticketTab === 'operator' && (
+                        <>
+                          <SelectItem value="impact_desc">Impact (High → Low)</SelectItem>
+                          <SelectItem value="impact_asc">Impact (Low → High)</SelectItem>
+                          <SelectItem value="status">Status</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1101,87 +1475,258 @@ export default function WorkOrderDetailsPage() {
               </DialogContent>
             </Dialog>
 
-            {(!workOrder.tickets || workOrder.tickets.length === 0) ? (
+            {/* Quality Ticket Edit Dialog */}
+            <Dialog open={isEditQualityTicketOpen} onOpenChange={setIsEditQualityTicketOpen}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Quality Ticket</DialogTitle>
+                  <DialogDescription>Update the quality ticket details.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="edit-quality-description">Description</Label>
+                    <RichTextEditor
+                      content={editQualityTicket.description}
+                      onChange={(html) => setEditQualityTicket({ ...editQualityTicket, description: html })}
+                      placeholder="Describe the issue..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-quality-serials">Serial Number(s)</Label>
+                    <Textarea
+                      id="edit-quality-serials"
+                      value={editQualityTicket.serial_numbers_input}
+                      onChange={(e) => setEditQualityTicket({ ...editQualityTicket, serial_numbers_input: e.target.value })}
+                      rows={4}
+                      placeholder="Enter one serial per line (or comma-separated)"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditQualityTicketOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpdateQualityTicket}
+                    disabled={updateQualityTicketMutation.isPending || !editQualityTicket.description || parseSerialNumbers(editQualityTicket.serial_numbers_input).length === 0}
+                  >
+                    {updateQualityTicketMutation.isPending ? 'Updating...' : 'Update'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Quality Ticket Delete Dialog */}
+            <Dialog open={isDeleteQualityTicketOpen} onOpenChange={setIsDeleteQualityTicketOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Quality Ticket</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this quality ticket? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDeleteQualityTicketOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteQualityTicket}
+                    disabled={deleteQualityTicketMutation.isPending}
+                  >
+                    {deleteQualityTicketMutation.isPending ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {((ticketTab === 'operator'
+              ? (!workOrder.tickets || workOrder.tickets.length === 0)
+              : (!workOrder.quality_tickets || workOrder.quality_tickets.length === 0))) ? (
               <div className="text-center py-12 text-gray-500">
                 <AlertCircle className="h-12 w-12 mx-auto mb-3 text-gray-400" />
                 <h3 className="text-lg font-medium mb-1">No tickets yet</h3>
-                <p className="text-sm">Create a ticket to report an issue with this work order</p>
+                <p className="text-sm">
+                  {ticketTab === 'quality'
+                    ? 'Create a quality ticket to report an issue with this work order'
+                    : 'Create a ticket to report an issue with this work order'}
+                </p>
               </div>
             ) : (
               <div className="space-y-4 print:space-y-6 print:px-2">
-                {displayTickets.map((ticket: any) => (
-                  <Card
-                    key={ticket.id}
-                    className="border-l-4 border-l-primary cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
-                    onClick={() => handleViewTicket(ticket)}
-                  >
-                    <CardContent className="p-4 print:p-5">
-                      <div className="space-y-3">
-                        {/* Header with ticket info and badges */}
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-2 mb-2">
-                              <span className="font-mono text-sm font-medium">
-                                {ticket.ticket_number}
-                              </span>
-                              <Badge className={getImpactColor(ticket.impact)}>
-                                {ticket.impact}
-                              </Badge>
-                              <Badge className={getStatusColor(ticket.status)}>
-                                {ticket.status}
-                              </Badge>
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                {ticket.area?.name}
-                              </Badge>
+                {ticketTab === 'operator' ? (
+                  displayTickets.map((ticket: any) => (
+                    <Card
+                      key={ticket.id}
+                      className="border-l-4 border-l-primary cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
+                      onClick={() => handleViewTicket(ticket)}
+                    >
+                      <CardContent className="p-4 print:p-5">
+                        <div className="space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center flex-wrap gap-2 mb-2">
+                                <span className="font-mono text-sm font-medium">
+                                  {ticket.ticket_number}
+                                </span>
+                                <Badge className={getImpactColor(ticket.impact)}>
+                                  {ticket.impact}
+                                </Badge>
+                                <Badge className={getStatusColor(ticket.status)}>
+                                  {ticket.status}
+                                </Badge>
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                  {ticket.area?.name}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1 text-sm text-gray-500">
+                                <Clock className="h-4 w-4" />
+                                <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                              </div>
+                              {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
+                                <div className="flex items-center gap-1 print:hidden">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditClick(ticket);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteClick(ticket);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
-                          
-                          {/* Date and edit/delete actions */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="flex items-center gap-1 text-sm text-gray-500">
-                              <Clock className="h-4 w-4" />
-                              <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
-                            </div>
-                            {/* Edit and delete buttons - admins can edit any ticket, operators can only edit their own */}
-                            {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
-                              <div className="flex items-center gap-1 print:hidden">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditClick(ticket);
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(ticket);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+
+                          <div
+                            className="text-gray-700 ticket-description"
+                            dangerouslySetInnerHTML={{ __html: ticket.description }}
+                          />
+
+                          {ticket.images && ticket.images.length > 0 && (
+                            <>
+                              <div className="flex flex-wrap gap-2 print:hidden">
+                                {ticket.images.map((url: string, idx: number) => (
+                                  <a
+                                    key={idx}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="relative group"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Attachment ${idx + 1}`}
+                                      className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                      <ExternalLink className="h-5 w-5 text-white" />
+                                    </div>
+                                  </a>
+                                ))}
                               </div>
-                            )}
+
+                              <div className="hidden print:block text-sm text-gray-600 italic">
+                                {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
+                                {ticket.images.map((_url: string, idx: number) => {
+                                  const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
+                                  return `${ticketIndex + 1}-${idx + 1}`;
+                                }).join(', ')}
+                              </div>
+                            </>
+                          )}
+
+                          <div className="text-sm text-gray-600">
+                            Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
                           </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  displayQualityTickets.map((ticket: any) => (
+                    <Card
+                      key={ticket.id}
+                      className="border-l-4 border-l-purple-600 cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
+                      onClick={() => handleViewQualityTicket(ticket)}
+                    >
+                      <CardContent className="p-4 print:p-5">
+                        <div className="space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center flex-wrap gap-2 mb-2">
+                                <span className="font-mono text-sm font-medium">
+                                  {ticket.quality_ticket_number}
+                                </span>
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                                  {(Array.isArray(ticket.serial_numbers) ? ticket.serial_numbers : []).length} Serial(s)
+                                </Badge>
+                              </div>
+                              {Array.isArray(ticket.serial_numbers) && ticket.serial_numbers.length > 0 && (
+                                <div className="text-sm text-gray-700 font-mono">
+                                  {ticket.serial_numbers.slice(0, 6).join(', ')}
+                                  {ticket.serial_numbers.length > 6 ? '…' : ''}
+                                </div>
+                              )}
+                            </div>
 
-                        {/* Description */}
-                        <div 
-                          className="text-gray-700 ticket-description" 
-                          dangerouslySetInnerHTML={{ __html: ticket.description }}
-                        />
-                          
-                        {/* Image thumbnails */}
-                        {ticket.images && ticket.images.length > 0 && (
-                          <>
-                            {/* Screen view - thumbnails */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1 text-sm text-gray-500">
+                                <Clock className="h-4 w-4" />
+                                <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                              </div>
+                              {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
+                                <div className="flex items-center gap-1 print:hidden">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditQualityClick(ticket);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteQualityClick(ticket);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            className="text-gray-700 ticket-description"
+                            dangerouslySetInnerHTML={{ __html: ticket.description }}
+                          />
+
+                          {ticket.images && ticket.images.length > 0 && (
                             <div className="flex flex-wrap gap-2 print:hidden">
                               {ticket.images.map((url: string, idx: number) => (
                                 <a
@@ -1202,26 +1747,16 @@ export default function WorkOrderDetailsPage() {
                                 </a>
                               ))}
                             </div>
-                            
-                            {/* Print view - figure references */}
-                            <div className="hidden print:block text-sm text-gray-600 italic">
-                              {ticket.images.length > 1 ? 'See Figures ' : 'See Figure '}
-                              {ticket.images.map((_url: string, idx: number) => {
-                                const ticketIndex = workOrder.tickets.findIndex((t: any) => t.id === ticket.id);
-                                return `${ticketIndex + 1}-${idx + 1}`;
-                              }).join(', ')}
-                            </div>
-                          </>
-                        )}
+                          )}
 
-                        {/* Submitted by */}
-                        <div className="text-sm text-gray-600">
-                          Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+                          <div className="text-sm text-gray-600">
+                            Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
             )}
 
@@ -1374,6 +1909,139 @@ export default function WorkOrderDetailsPage() {
 
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsViewTicketOpen(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Quality Ticket Details + Comments Modal */}
+            <Dialog
+              open={isViewQualityTicketOpen}
+              onOpenChange={(open) => {
+                setIsViewQualityTicketOpen(open);
+                if (!open) setViewQualityTicket(null);
+              }}
+            >
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Quality Ticket Details</DialogTitle>
+                  <DialogDescription>
+                    {viewQualityTicket?.quality_ticket_number
+                      ? `Ticket ${viewQualityTicket.quality_ticket_number}`
+                      : 'View ticket details'}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {!viewQualityTicket ? (
+                  <div className="text-sm text-gray-500">No ticket selected.</div>
+                ) : (
+                  <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-medium">{viewQualityTicket.quality_ticket_number}</span>
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                          {(Array.isArray(viewQualityTicket.serial_numbers) ? viewQualityTicket.serial_numbers : []).length} Serial(s)
+                        </Badge>
+                      </div>
+
+                      {Array.isArray(viewQualityTicket.serial_numbers) && viewQualityTicket.serial_numbers.length > 0 && (
+                        <div className="text-sm text-gray-700 font-mono">
+                          {viewQualityTicket.serial_numbers.join(', ')}
+                        </div>
+                      )}
+
+                      <div className="text-sm text-gray-600">
+                        Submitted by: {viewQualityTicket.submitted_by_user?.full_name || 'Unknown'} •{' '}
+                        {new Date(viewQualityTicket.created_at).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-gray-700">Description</div>
+                      <div
+                        className="text-gray-800 ticket-description border rounded-md p-3 bg-white"
+                        dangerouslySetInnerHTML={{ __html: viewQualityTicket.description }}
+                      />
+                    </div>
+
+                    {viewQualityTicket.images && viewQualityTicket.images.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-700">Attachments</div>
+                        <div className="flex flex-wrap gap-2">
+                          {viewQualityTicket.images.map((url: string, idx: number) => (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Attachment ${idx + 1}`}
+                                className="h-24 w-24 object-cover rounded border hover:opacity-80 transition-opacity"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                <ExternalLink className="h-5 w-5 text-white" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-gray-700">Comments</div>
+
+                      <div className="space-y-2">
+                        {isQualityCommentsLoading ? (
+                          <div className="text-sm text-gray-500">Loading comments...</div>
+                        ) : qualityTicketComments.length === 0 ? (
+                          <div className="text-sm text-gray-500">No comments yet.</div>
+                        ) : (
+                          qualityTicketComments.map((c: any) => (
+                            <div key={c.id} className="border rounded-md p-3 bg-gray-50">
+                              <div className="text-xs text-gray-600 mb-1">
+                                {c.user?.full_name || 'Unknown'} • {new Date(c.created_at).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{c.comment}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="new-quality-comment">Add a comment</Label>
+                        <Textarea
+                          id="new-quality-comment"
+                          value={newQualityComment}
+                          onChange={(e) => setNewQualityComment(e.target.value)}
+                          placeholder="Type your comment..."
+                          rows={4}
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => {
+                              if (!viewQualityTicket?.id) return;
+                              if (!newQualityComment.trim()) return;
+                              addQualityCommentMutation.mutate({
+                                ticketId: viewQualityTicket.id,
+                                comment: newQualityComment.trim(),
+                              });
+                            }}
+                            disabled={addQualityCommentMutation.isPending || !newQualityComment.trim()}
+                          >
+                            {addQualityCommentMutation.isPending ? 'Posting...' : 'Post Comment'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsViewQualityTicketOpen(false)}>
                     Close
                   </Button>
                 </DialogFooter>

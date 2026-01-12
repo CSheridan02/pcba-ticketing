@@ -20,7 +20,7 @@ export class CreateWorkOrderDto {
   @IsNumber()
   quantity: number;
 
-  @IsEnum(['Not Started', 'Active', 'Completed'])
+  @IsEnum(['Not Started', 'Active', 'Production Done', 'Quality Received', 'Quality Done', 'Completed'])
   @IsOptional()
   status?: string;
 

@@ -276,6 +276,152 @@ export const api = {
     });
   },
 
+  // Quality Tickets
+  async getQualityTickets(workOrderId?: string) {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    if (workOrderId) params.append('workOrderId', workOrderId);
+    const url = `${API_URL}/quality-tickets${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch quality tickets');
+    return response.json();
+  },
+
+  async createQualityTicket(data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to create quality ticket');
+    return response.json();
+  },
+
+  async updateQualityTicket(id: string, data: any) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to update quality ticket');
+    return response.json();
+  },
+
+  async deleteQualityTicket(id: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/${id}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete quality ticket');
+    return response.json();
+  },
+
+  async getQualityTicketComments(qualityTicketId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/${qualityTicketId}/comments`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch quality ticket comments');
+    return response.json();
+  },
+
+  async addQualityTicketComment(qualityTicketId: string, comment: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/${qualityTicketId}/comments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ comment }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to add quality ticket comment');
+    return response.json();
+  },
+
+  async uploadQualityTicketImages(files: File[], onProgress?: (progress: number) => void) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const progress = Math.round((e.loaded / e.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (_error) {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          reject(new Error(`Failed to upload images: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('timeout', () => {
+        reject(new Error('Upload timeout'));
+      });
+
+      xhr.open('POST', `${API_URL}/quality-tickets/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+      xhr.timeout = 120000;
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    });
+  },
+
+  // Work Order: Quality workflow
+  async updateWorkOrderStatus(id: string, status: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${id}/status`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to update work order status');
+    return response.json();
+  },
+
+  async updateWorkOrderQualityResult(id: string, quality_result: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/work-orders/${id}/quality-result`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ quality_result }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to update work order quality result');
+    return response.json();
+  },
+
   async uploadBoardReferenceImage(file: File, onProgress?: (progress: number) => void) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

@@ -93,7 +93,12 @@ export default function SettingsPage() {
   };
 
   const handleRoleChange = (userId: string, newRole: string, userName: string) => {
-    const roleLabel = newRole === 'admin' ? 'Administrator' : 'Line Operator';
+    const roleLabel =
+      newRole === 'admin'
+        ? 'Administrator'
+        : newRole === 'quality'
+          ? 'Quality'
+          : 'Line Operator';
     if (window.confirm(`Are you sure you want to change ${userName}'s role to ${roleLabel}?`)) {
       updateUserRoleMutation.mutate({ userId, role: newRole });
     }
@@ -215,6 +220,7 @@ export default function SettingsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="line_operator">Operator</SelectItem>
+                          <SelectItem value="quality">Quality</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>

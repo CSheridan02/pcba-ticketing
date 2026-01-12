@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
@@ -8,6 +8,13 @@ type SerialRange = { start?: string; end?: string };
 @Injectable()
 export class WorkOrdersService {
   constructor(private supabaseService: SupabaseService) {}
+
+  private readonly QUALITY_VISIBLE_STATUSES = [
+    'Production Done',
+    'Quality Received',
+    'Quality Done',
+    'Completed',
+  ] as const;
 
   private parseSerial(serial: unknown): { serial: string; num: number; suffix: string } | null {
     const s = (serial || '').toString().trim().toUpperCase();
@@ -237,7 +244,7 @@ export class WorkOrdersService {
     return { inserted: payload.length };
   }
 
-  async findAll(search?: string, status?: string, sortBy?: string) {
+  async findAll(search?: string, status?: string, sortBy?: string, userRole?: string) {
     const supabase = this.supabaseService.getClient();
     let query = supabase
       .from('work_orders')
@@ -245,7 +252,8 @@ export class WorkOrdersService {
         *,
         board:boards(id, asm_number, internal_g_number, description),
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
-        tickets(count)
+        tickets(count),
+        quality_tickets(count)
       `);
 
     // Apply search filter
@@ -256,6 +264,11 @@ export class WorkOrdersService {
     // Apply status filter
     if (status) {
       query = query.eq('status', status);
+    }
+
+    // Gate Quality visibility to post-production statuses
+    if (userRole === 'quality') {
+      query = query.in('status', [...this.QUALITY_VISIBLE_STATUSES]);
     }
 
     // Apply sorting
@@ -275,7 +288,7 @@ export class WorkOrdersService {
     return data;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userRole?: string) {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('work_orders')
@@ -288,14 +301,25 @@ export class WorkOrdersService {
           *,
           area:areas(id, name),
           submitted_by_user:users!tickets_submitted_by_fkey(id, full_name)
+        ),
+        quality_tickets(
+          *,
+          submitted_by_user:users!quality_tickets_submitted_by_fkey(id, full_name)
         )
       `)
       .order('created_at', { ascending: true, foreignTable: 'work_order_alerts' })
       .order('created_at', { ascending: false, foreignTable: 'tickets' })
+      .order('created_at', { ascending: false, foreignTable: 'quality_tickets' })
       .eq('id', id)
       .single();
 
     if (error) throw new NotFoundException('Work order not found');
+
+    // Gate Quality visibility to post-production statuses
+    if (userRole === 'quality' && !this.QUALITY_VISIBLE_STATUSES.includes(data.status)) {
+      throw new NotFoundException('Work order not found');
+    }
+
     return data;
   }
 
@@ -304,6 +328,45 @@ export class WorkOrdersService {
     const { data, error } = await supabase
       .from('work_orders')
       .update(updateWorkOrderDto)
+      .eq('id', id)
+      .select(`
+        *,
+        board:boards(id, asm_number, internal_g_number, description),
+        created_by_user:users!work_orders_created_by_fkey(id, full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateStatus(id: string, status: string, userRole?: string) {
+    // Restrict Quality to post-production statuses only
+    if (userRole === 'quality' && !this.QUALITY_VISIBLE_STATUSES.includes(status as any)) {
+      throw new ForbiddenException('Quality can only set post-production statuses');
+    }
+
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('work_orders')
+      .update({ status })
+      .eq('id', id)
+      .select(`
+        *,
+        board:boards(id, asm_number, internal_g_number, description),
+        created_by_user:users!work_orders_created_by_fkey(id, full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateQualityResult(id: string, quality_result: string, _userRole?: string) {
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('work_orders')
+      .update({ quality_result })
       .eq('id', id)
       .select(`
         *,
@@ -327,13 +390,21 @@ export class WorkOrdersService {
     return { message: 'Work order deleted successfully' };
   }
 
-  async getActiveWorkOrders() {
+  async getActiveWorkOrders(userRole?: string) {
     const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from('work_orders')
       .select('*')
-      .eq('status', 'Active')
       .order('created_at', { ascending: false });
+
+    // Existing behavior: active list is for in-production. For Quality, show only post-production.
+    if (userRole === 'quality') {
+      query = query.in('status', [...this.QUALITY_VISIBLE_STATUSES]);
+    } else {
+      query = query.eq('status', 'Active');
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     

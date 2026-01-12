@@ -8,7 +8,7 @@ interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'line_operator';
+  role: 'admin' | 'line_operator' | 'quality';
   access_granted: boolean;
 }
 
