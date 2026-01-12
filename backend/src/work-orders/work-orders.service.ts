@@ -9,25 +9,41 @@ type SerialRange = { start?: string; end?: string };
 export class WorkOrdersService {
   constructor(private supabaseService: SupabaseService) {}
 
-  private extractMaxSerialEnd(serialRanges: unknown): string | null {
+  private parseSerial(serial: unknown): { serial: string; num: number; suffix: string } | null {
+    const s = (serial || '').toString().trim().toUpperCase();
+    // Expected format: digits + single alpha suffix (commonly W)
+    const m = s.match(/^(\d+)([A-Z])$/);
+    if (!m) return null;
+    const num = parseInt(m[1], 10);
+    if (!Number.isFinite(num)) return null;
+    return { serial: s, num, suffix: m[2] };
+  }
+
+  private extractMaxSerialEndFromRanges(serialRanges: unknown): { serial: string; num: number } | null {
     if (!Array.isArray(serialRanges) || serialRanges.length === 0) return null;
 
     let best: { serial: string; num: number } | null = null;
-
     for (const r of serialRanges as SerialRange[]) {
-      const end = (r?.end || '').toString().trim().toUpperCase();
-      // Expected format: digits + single alpha suffix (commonly W)
-      const m = end.match(/^(\d+)([A-Z])$/);
-      if (!m) continue;
-      const num = parseInt(m[1], 10);
-      if (!Number.isFinite(num)) continue;
-
-      if (!best || num > best.num) {
-        best = { serial: end, num };
+      const parsed = this.parseSerial((r as any)?.end);
+      if (!parsed) continue;
+      if (!best || parsed.num > best.num) {
+        best = { serial: parsed.serial, num: parsed.num };
       }
     }
+    return best;
+  }
 
-    return best?.serial ?? null;
+  private extractMaxSerialEndFromWorkOrder(wo: any): string | null {
+    const bestFromRanges = this.extractMaxSerialEndFromRanges(wo?.serial_ranges);
+    const bestFromExtras = wo?.extra_label_range?.end ? this.parseSerial(wo.extra_label_range.end) : null;
+
+    const candidates: Array<{ serial: string; num: number }> = [];
+    if (bestFromRanges) candidates.push(bestFromRanges);
+    if (bestFromExtras) candidates.push({ serial: bestFromExtras.serial, num: bestFromExtras.num });
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.num - a.num);
+    return candidates[0].serial;
   }
 
   async create(createWorkOrderDto: CreateWorkOrderDto, userId: string) {
@@ -324,21 +340,17 @@ export class WorkOrdersService {
     // Sort by latest serial number in ranges (client-side for JSONB complexity)
     if (data) {
       data.sort((a, b) => {
-        const aRanges = a.serial_ranges || [];
-        const bRanges = b.serial_ranges || [];
-        
-        if (aRanges.length === 0 && bRanges.length === 0) return 0;
-        if (aRanges.length === 0) return 1;  // a goes after b
-        if (bRanges.length === 0) return -1; // a goes before b
-        
-        // Get the last (highest) end serial from each
-        const aLastEnd = aRanges[aRanges.length - 1]?.end || '';
-        const bLastEnd = bRanges[bRanges.length - 1]?.end || '';
-        
-        const aNum = parseInt(aLastEnd.replace('W', '')) || 0;
-        const bNum = parseInt(bLastEnd.replace('W', '')) || 0;
-        
-        return bNum - aNum; // Descending order (highest first)
+        const aEnd = this.extractMaxSerialEndFromWorkOrder(a) || '';
+        const bEnd = this.extractMaxSerialEndFromWorkOrder(b) || '';
+
+        const aParsed = this.parseSerial(aEnd);
+        const bParsed = this.parseSerial(bEnd);
+
+        if (!aParsed && !bParsed) return 0;
+        if (!aParsed) return 1;
+        if (!bParsed) return -1;
+
+        return bParsed.num - aParsed.num; // Descending order (highest first)
       });
     }
     
@@ -354,7 +366,7 @@ export class WorkOrdersService {
 
     const { data, error } = await supabase
       .from('work_orders')
-      .select('id, created_at, serial_ranges')
+      .select('id, created_at, serial_ranges, has_extra_labels, extra_label_range')
       .eq('board_id', boardId)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -362,7 +374,7 @@ export class WorkOrdersService {
     if (error) throw error;
 
     for (const wo of data || []) {
-      const latestEnd = this.extractMaxSerialEnd(wo.serial_ranges);
+      const latestEnd = this.extractMaxSerialEndFromWorkOrder(wo);
       if (latestEnd) {
         return {
           latest_end: latestEnd,
@@ -380,24 +392,17 @@ export class WorkOrdersService {
    * when a specific board has no serial history.
    */
   async getSerialSuggestion(boardId?: string) {
-    if (boardId) {
-      const boardScoped = await this.getLatestSerialRangeEnd(boardId);
-      if (boardScoped.latest_end) {
-        return { ...boardScoped, scope: 'board' as const };
-      }
-    }
-
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('work_orders')
-      .select('id, created_at, serial_ranges')
+      .select('id, created_at, serial_ranges, has_extra_labels, extra_label_range')
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) throw error;
 
     for (const wo of data || []) {
-      const latestEnd = this.extractMaxSerialEnd(wo.serial_ranges);
+      const latestEnd = this.extractMaxSerialEndFromWorkOrder(wo);
       if (latestEnd) {
         return {
           latest_end: latestEnd,
@@ -408,6 +413,8 @@ export class WorkOrdersService {
       }
     }
 
+    // If we couldn't find any serial history, return null.
+    // Note: boardId is ignored intentionally because serials are global.
     return { latest_end: null, scope: 'none' as const };
   }
 }
