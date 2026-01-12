@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 
@@ -18,6 +19,12 @@ export default function BoardsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingBoard, setEditingBoard] = useState<any>(null);
+  const [newReferenceFile, setNewReferenceFile] = useState<File | null>(null);
+  const [newReferencePreview, setNewReferencePreview] = useState<string | null>(null);
+  const [editReferenceFile, setEditReferenceFile] = useState<File | null>(null);
+  const [editReferencePreview, setEditReferencePreview] = useState<string | null>(null);
+  const [referenceUploadProgress, setReferenceUploadProgress] = useState(0);
+  const [isUploadingReference, setIsUploadingReference] = useState(false);
 
   const [newBoard, setNewBoard] = useState({
     asm_number: '',
@@ -29,6 +36,7 @@ export default function BoardsPage() {
     asm_number: '',
     internal_g_number: '',
     description: '',
+    reference_image_url: '',
   });
 
   const [openBoardId, setOpenBoardId] = useState<string | null>(null);
@@ -55,6 +63,10 @@ export default function BoardsPage() {
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       setIsCreateOpen(false);
       setNewBoard({ asm_number: '', internal_g_number: '', description: '' });
+      setNewReferenceFile(null);
+      setNewReferencePreview(null);
+      setReferenceUploadProgress(0);
+      setIsUploadingReference(false);
     },
   });
 
@@ -67,6 +79,10 @@ export default function BoardsPage() {
       }
       setIsEditOpen(false);
       setEditingBoard(null);
+      setEditReferenceFile(null);
+      setEditReferencePreview(null);
+      setReferenceUploadProgress(0);
+      setIsUploadingReference(false);
     },
   });
 
@@ -99,13 +115,54 @@ export default function BoardsPage() {
     },
   });
 
-  const handleCreateBoard = () => {
+  const addBoardAlertMutation = useMutation({
+    mutationFn: ({ boardId, content }: { boardId: string; content: string }) =>
+      api.addBoardAlert(boardId, { content }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['board', vars.boardId] });
+    },
+  });
+
+  const updateBoardAlertMutation = useMutation({
+    mutationFn: ({ alertId, content }: { alertId: string; content: string }) =>
+      api.updateBoardAlert(alertId, { content }),
+    onSuccess: () => {
+      if (openBoardId) queryClient.invalidateQueries({ queryKey: ['board', openBoardId] });
+    },
+  });
+
+  const deleteBoardAlertMutation = useMutation({
+    mutationFn: ({ alertId }: { alertId: string; boardId: string }) => api.deleteBoardAlert(alertId),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['board', vars.boardId] });
+    },
+  });
+
+  const handleCreateBoard = async () => {
     if (!newBoard.asm_number.trim() || !newBoard.description.trim()) return;
-    createBoardMutation.mutate({
-      asm_number: newBoard.asm_number.trim(),
-      internal_g_number: newBoard.internal_g_number.trim() || undefined,
-      description: newBoard.description.trim(),
-    });
+
+    try {
+      setIsUploadingReference(!!newReferenceFile);
+      setReferenceUploadProgress(0);
+
+      let reference_image_url: string | undefined;
+      if (newReferenceFile) {
+        const res = await api.uploadBoardReferenceImage(newReferenceFile, setReferenceUploadProgress);
+        reference_image_url = res.url;
+      }
+
+      createBoardMutation.mutate({
+        asm_number: newBoard.asm_number.trim(),
+        internal_g_number: newBoard.internal_g_number.trim() || undefined,
+        description: newBoard.description.trim(),
+        reference_image_url,
+      });
+    } catch (e: any) {
+      console.error(e);
+      alert(`Failed to upload reference image: ${e?.message || 'Please try again.'}`);
+      setIsUploadingReference(false);
+      setReferenceUploadProgress(0);
+    }
   };
 
   const handleEditClick = (board: any) => {
@@ -114,20 +171,41 @@ export default function BoardsPage() {
       asm_number: board.asm_number || '',
       internal_g_number: board.internal_g_number || '',
       description: board.description || '',
+      reference_image_url: board.reference_image_url || '',
     });
+    setEditReferenceFile(null);
+    setEditReferencePreview(null);
     setIsEditOpen(true);
   };
 
-  const handleUpdateBoard = () => {
+  const handleUpdateBoard = async () => {
     if (!editingBoard?.id) return;
-    updateBoardMutation.mutate({
-      id: editingBoard.id,
-      data: {
-        asm_number: editBoard.asm_number.trim() || undefined,
-        internal_g_number: editBoard.internal_g_number.trim() || undefined,
-        description: editBoard.description.trim() || undefined,
-      },
-    });
+
+    try {
+      setIsUploadingReference(!!editReferenceFile);
+      setReferenceUploadProgress(0);
+
+      let reference_image_url: string | undefined = editBoard.reference_image_url?.trim() || undefined;
+      if (editReferenceFile) {
+        const res = await api.uploadBoardReferenceImage(editReferenceFile, setReferenceUploadProgress);
+        reference_image_url = res.url;
+      }
+
+      updateBoardMutation.mutate({
+        id: editingBoard.id,
+        data: {
+          asm_number: editBoard.asm_number.trim() || undefined,
+          internal_g_number: editBoard.internal_g_number.trim() || undefined,
+          description: editBoard.description.trim() || undefined,
+          reference_image_url,
+        },
+      });
+    } catch (e: any) {
+      console.error(e);
+      alert(`Failed to upload reference image: ${e?.message || 'Please try again.'}`);
+      setIsUploadingReference(false);
+      setReferenceUploadProgress(0);
+    }
   };
 
   const handleDeleteBoard = (board: any) => {
@@ -186,13 +264,59 @@ export default function BoardsPage() {
                     onChange={(e) => setNewBoard({ ...newBoard, description: e.target.value })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Reference Board Image (Optional)</Label>
+                  {newReferencePreview ? (
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={newReferencePreview}
+                        alt="Reference preview"
+                        className="h-20 w-20 object-cover rounded border"
+                      />
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-600">
+                          {isUploadingReference && referenceUploadProgress > 0 ? `Uploading… ${referenceUploadProgress}%` : 'Preview'}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewReferenceFile(null);
+                              setNewReferencePreview(null);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setNewReferenceFile(f);
+                        if (f) {
+                          const url = URL.createObjectURL(f);
+                          setNewReferencePreview(url);
+                        } else {
+                          setNewReferencePreview(null);
+                        }
+                      }}
+                    />
+                  )}
+                  <div className="text-xs text-gray-500">JPEG/PNG/WebP/HEIC, up to 5MB.</div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateBoard} disabled={createBoardMutation.isPending}>
-                  {createBoardMutation.isPending ? 'Creating...' : 'Create'}
+                <Button onClick={handleCreateBoard} disabled={createBoardMutation.isPending || isUploadingReference}>
+                  {isUploadingReference ? 'Uploading...' : createBoardMutation.isPending ? 'Creating...' : 'Create'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -278,6 +402,25 @@ export default function BoardsPage() {
 
                         <CollapsibleContent>
                           <div className="border-t bg-white px-4 py-4 space-y-6">
+                            {/* Board alerts */}
+                            <BoardAlerts
+                              boardId={b.id}
+                              loading={isLoadingBoardDetails && openBoardId === b.id}
+                              alerts={isOpen ? (boardDetails?.board_alerts || []) : []}
+                              onAdd={(content) => addBoardAlertMutation.mutate({ boardId: b.id, content })}
+                              onUpdate={(alertId, content) => updateBoardAlertMutation.mutate({ alertId, content })}
+                              onDelete={(alertId) => {
+                                if (window.confirm('Delete this alert?')) {
+                                  deleteBoardAlertMutation.mutate({ alertId, boardId: b.id });
+                                }
+                              }}
+                              disabled={
+                                addBoardAlertMutation.isPending ||
+                                updateBoardAlertMutation.isPending ||
+                                deleteBoardAlertMutation.isPending
+                              }
+                            />
+
                             {/* Cycle times */}
                             <BoardCycleTimes
                               boardId={b.id}
@@ -360,19 +503,219 @@ export default function BoardsPage() {
                   onChange={(e) => setEditBoard({ ...editBoard, description: e.target.value })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Reference Board Image (Optional)</Label>
+                {(editReferencePreview || editBoard.reference_image_url) ? (
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={editReferencePreview || editBoard.reference_image_url}
+                      alt="Reference"
+                      className="h-20 w-20 object-cover rounded border"
+                    />
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-600">
+                        {isUploadingReference && referenceUploadProgress > 0 ? `Uploading… ${referenceUploadProgress}%` : 'Reference image'}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            setEditReferenceFile(f);
+                            if (f) {
+                              const url = URL.createObjectURL(f);
+                              setEditReferencePreview(url);
+                            } else {
+                              setEditReferencePreview(null);
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditReferenceFile(null);
+                            setEditReferencePreview(null);
+                            setEditBoard({ ...editBoard, reference_image_url: '' });
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setEditReferenceFile(f);
+                      if (f) {
+                        const url = URL.createObjectURL(f);
+                        setEditReferencePreview(url);
+                      } else {
+                        setEditReferencePreview(null);
+                      }
+                    }}
+                  />
+                )}
+                <div className="text-xs text-gray-500">JPEG/PNG/WebP/HEIC, up to 5MB.</div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleUpdateBoard} disabled={updateBoardMutation.isPending}>
-                {updateBoardMutation.isPending ? 'Updating...' : 'Update'}
+              <Button onClick={handleUpdateBoard} disabled={updateBoardMutation.isPending || isUploadingReference}>
+                {isUploadingReference ? 'Uploading...' : updateBoardMutation.isPending ? 'Updating...' : 'Update'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
     </Layout>
+  );
+}
+
+function BoardAlerts(props: {
+  boardId: string;
+  loading: boolean;
+  alerts: any[];
+  onAdd: (content: string) => void;
+  onUpdate: (alertId: string, content: string) => void;
+  onDelete: (alertId: string) => void;
+  disabled: boolean;
+}) {
+  const [newAlertContent, setNewAlertContent] = useState('');
+  const [editingAlert, setEditingAlert] = useState<any>(null);
+  const [editContent, setEditContent] = useState('');
+
+  if (props.loading) {
+    return (
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-gray-800">Board Alerts</div>
+        <div className="text-sm text-gray-500">Loading alerts…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-gray-800">Board Alerts</div>
+        <Badge variant="outline" className="font-normal">
+          {props.alerts.length} alert(s)
+        </Badge>
+      </div>
+
+      {/* Add */}
+      <div className="space-y-2">
+        <RichTextEditor
+          content={newAlertContent}
+          onChange={setNewAlertContent}
+          placeholder="Enter a board alert…"
+        />
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={props.disabled || !newAlertContent.trim()}
+          onClick={() => {
+            props.onAdd(newAlertContent);
+            setNewAlertContent('');
+          }}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Alert
+        </Button>
+      </div>
+
+      {/* List */}
+      {props.alerts.length === 0 ? (
+        <div className="text-sm text-gray-500">No alerts yet.</div>
+      ) : (
+        <div className="space-y-2">
+          {props.alerts.map((a: any) => (
+            <div key={a.id} className="border rounded-md p-3 bg-white">
+              <div className="flex items-start justify-between gap-3">
+                <div
+                  className="rich-text flex-1"
+                  dangerouslySetInnerHTML={{ __html: a.content }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={props.disabled}
+                    onClick={() => {
+                      setEditingAlert(a);
+                      setEditContent(a.content || '');
+                    }}
+                    aria-label="Edit alert"
+                    title="Edit alert"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={props.disabled}
+                    onClick={() => props.onDelete(a.id)}
+                    aria-label="Delete alert"
+                    title="Delete alert"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit dialog */}
+      <Dialog
+        open={!!editingAlert}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingAlert(null);
+            setEditContent('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Alert</DialogTitle>
+            <DialogDescription>Update the board alert text.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <RichTextEditor content={editContent} onChange={setEditContent} placeholder="Update alert…" />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingAlert(null);
+                setEditContent('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={props.disabled || !editContent.trim() || !editingAlert?.id}
+              onClick={() => {
+                props.onUpdate(editingAlert.id, editContent);
+                setEditingAlert(null);
+                setEditContent('');
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

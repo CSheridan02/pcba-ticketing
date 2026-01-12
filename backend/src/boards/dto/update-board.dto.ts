@@ -12,6 +12,10 @@ export class UpdateBoardDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  reference_image_url?: string;
 }
 
 

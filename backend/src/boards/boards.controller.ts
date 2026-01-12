@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -7,6 +7,9 @@ import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { CreateBoardCycleTimeDto } from './dto/create-board-cycle-time.dto';
 import { UpdateBoardCycleTimeDto } from './dto/update-board-cycle-time.dto';
+import { CreateBoardAlertDto } from './dto/create-board-alert.dto';
+import { UpdateBoardAlertDto } from './dto/update-board-alert.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('boards')
 @UseGuards(JwtAuthGuard)
@@ -63,6 +66,46 @@ export class BoardsController {
   @Roles('admin')
   removeCycleTime(@Param('cycleTimeId') cycleTimeId: string) {
     return this.boardsService.removeCycleTime(cycleTimeId);
+  }
+
+  @Post(':id/alerts')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  addAlert(@Param('id') id: string, @Body() dto: CreateBoardAlertDto) {
+    return this.boardsService.addAlert(id, dto);
+  }
+
+  @Patch('alerts/:alertId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  updateAlert(@Param('alertId') alertId: string, @Body() dto: UpdateBoardAlertDto) {
+    return this.boardsService.updateAlert(alertId, dto);
+  }
+
+  @Delete('alerts/:alertId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  removeAlert(@Param('alertId') alertId: string) {
+    return this.boardsService.removeAlert(alertId);
+  }
+
+  @Post('upload-reference')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadReferenceImage(@UploadedFile() file: Express.Multer.File, @Request() req) {
+    if (!file) throw new BadRequestException('No file uploaded');
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw new BadRequestException(`Invalid file type: ${file.mimetype}`);
+    }
+    if (file.size > maxSize) {
+      throw new BadRequestException(`File too large: ${file.originalname}`);
+    }
+
+    return this.boardsService.uploadReferenceImage(file, req.user.userId);
   }
 }
 

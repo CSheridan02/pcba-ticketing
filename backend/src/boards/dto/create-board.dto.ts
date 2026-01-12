@@ -12,6 +12,10 @@ export class CreateBoardDto {
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  @IsString()
+  @IsOptional()
+  reference_image_url?: string;
 }
 
 

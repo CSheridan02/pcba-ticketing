@@ -62,6 +62,12 @@ export default function WorkOrdersPage() {
     enabled: !!newWorkOrder.board_id,
   });
 
+  const { data: selectedBoardDetails, isLoading: isSelectedBoardDetailsLoading } = useQuery({
+    queryKey: ['board', newWorkOrder.board_id],
+    queryFn: () => api.getBoard(newWorkOrder.board_id),
+    enabled: !!newWorkOrder.board_id && isCreateDialogOpen,
+  });
+
   const createSuggestedStart = useMemo(() => {
     const latestEnd = createSerialSuggestion?.latest_end;
     if (!latestEnd) return null;
@@ -369,6 +375,17 @@ export default function WorkOrdersPage() {
                       )}
                       <div className="truncate">
                         <span className="font-medium">Description:</span> {selectedBoard.description}
+                      </div>
+                      <div>
+                        <span className="font-medium">This work order has:</span>{' '}
+                        {isSelectedBoardDetailsLoading ? (
+                          <span>Checking alerts…</span>
+                        ) : (
+                          <span>
+                            {(selectedBoardDetails?.board_alerts?.length || 0)} alert
+                            {(selectedBoardDetails?.board_alerts?.length || 0) === 1 ? '' : 's'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -726,7 +743,77 @@ export default function WorkOrdersPage() {
 
         {/* Work Orders Table */}
         <Card>
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
+          {/* Mobile list */}
+          <div className="sm:hidden p-4 space-y-2">
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading...</div>
+            ) : workOrders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No work orders found</div>
+            ) : (
+              workOrders.map((wo: any) => (
+                <Card
+                  key={wo.id}
+                  className="cursor-pointer hover:shadow-sm transition-shadow"
+                  onClick={() => navigate(`/work-orders/${wo.id}`)}
+                >
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-primary font-semibold">{wo.work_order_number}</div>
+                        <div className="text-xs text-gray-600 truncate">{wo.description}</div>
+                      </div>
+                      <div className="shrink-0">{getStatusBadge(wo.status)}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
+                      <div>
+                        <span className="text-gray-500">ASM:</span> {wo.asm_number}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Qty:</span> {wo.quantity}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Tickets:</span> {wo.tickets?.[0]?.count || 0}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Created:</span> {new Date(wo.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    {profile?.role === 'admin' && (
+                      <div className="pt-1 flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditClick(wo);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(wo);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto -mx-4 sm:mx-0">
             <div className="inline-block min-w-full align-middle px-4 sm:px-0">
               <table className="min-w-full divide-y divide-gray-200">
               <thead className="border-b bg-gray-50">

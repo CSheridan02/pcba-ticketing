@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
@@ -28,6 +28,10 @@ export default function WorkOrderDetailsPage() {
   const [isDeleteTicketOpen, setIsDeleteTicketOpen] = useState(false);
   const [isEditWorkOrderOpen, setIsEditWorkOrderOpen] = useState(false);
   const [isViewTicketOpen, setIsViewTicketOpen] = useState(false);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [isReferenceImageOpen, setIsReferenceImageOpen] = useState(false);
+  const [isAlertOverflowing, setIsAlertOverflowing] = useState(false);
+  const alertPreviewRef = useRef<HTMLDivElement | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [viewTicket, setViewTicket] = useState<any>(null);
   const [ticketSearch, setTicketSearch] = useState('');
@@ -365,6 +369,24 @@ export default function WorkOrderDetailsPage() {
     window.print();
   };
 
+  // Alerts + reference image (must be defined before any early returns to keep hook order stable)
+  const alerts: any[] = workOrder?.alerts || [];
+  const alertsCount = alerts.length;
+  const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, 1);
+  const referenceImageUrl: string | null = workOrder?.board?.reference_image_url || null;
+
+  useEffect(() => {
+    if (showAllAlerts) return;
+    const el = alertPreviewRef.current;
+    if (!el) {
+      setIsAlertOverflowing(false);
+      return;
+    }
+    // Detect whether the collapsed preview is clipped
+    const overflowing = el.scrollHeight > el.clientHeight + 1;
+    setIsAlertOverflowing(overflowing);
+  }, [showAllAlerts, visibleAlerts?.[0]?.content, alertsCount]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -436,15 +458,108 @@ export default function WorkOrderDetailsPage() {
       `}</style>
       <div className="space-y-6 print:space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between print:hidden">
-          <Button variant="ghost" onClick={() => navigate('/work-orders')}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 print:hidden">
+          <Button variant="ghost" className="justify-start w-fit" onClick={() => navigate('/work-orders')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Work Orders
           </Button>
-          <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print Tickets
-          </Button>
+          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-end gap-2">
+            <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full xs:w-auto">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Ticket
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Create New Ticket</DialogTitle>
+                  <DialogDescription>
+                    Report an issue with this work order.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <RichTextEditor
+                      content={newTicket.description}
+                      onChange={(html) => setNewTicket({ ...newTicket, description: html })}
+                      placeholder="Describe the issue..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="impact">Impact</Label>
+                    <Select
+                      value={newTicket.impact}
+                      onValueChange={(value) => setNewTicket({ ...newTicket, impact: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="area">Area</Label>
+                    <Select
+                      value={newTicket.area_id}
+                      onValueChange={(value) => setNewTicket({ ...newTicket, area_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an area" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {areas.map((area: any) => (
+                          <SelectItem key={area.id} value={area.id}>
+                            {area.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Images (Optional)</Label>
+                    <ImageUpload
+                      onImagesSelected={setSelectedImages}
+                      maxFiles={5}
+                    />
+                  </div>
+                </div>
+                
+                {/* Upload Progress */}
+                {isUploading && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Uploading images...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)} disabled={isUploading}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateTicket}
+                    disabled={createTicketMutation.isPending || isUploading || !newTicket.area_id || !newTicket.description}
+                  >
+                    {isUploading ? 'Uploading...' : createTicketMutation.isPending ? 'Creating...' : 'Create'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Button className="w-full xs:w-auto" variant="outline" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print Tickets
+            </Button>
+          </div>
         </div>
 
         {/* Work Order Details */}
@@ -492,10 +607,30 @@ export default function WorkOrderDetailsPage() {
                   </p>
                 </div>
               )}
-              <div className="md:col-span-2">
+              <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
                 <p className="text-base">{workOrder.description}</p>
               </div>
+              {referenceImageUrl ? (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Reference Board</h3>
+                  <button
+                    type="button"
+                    className="w-full max-w-[220px] border rounded-md overflow-hidden bg-white hover:shadow-sm transition-shadow text-left"
+                    onClick={() => setIsReferenceImageOpen(true)}
+                    title="View reference board image"
+                  >
+                    <img
+                      src={referenceImageUrl}
+                      alt="Reference board"
+                      className="w-full h-28 object-cover"
+                    />
+                    <div className="px-2 py-1 text-xs text-gray-600">Click to enlarge</div>
+                  </button>
+                </div>
+              ) : (
+                <div />
+              )}
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Quantity</h3>
                 <p className="text-lg font-semibold">{workOrder.quantity}</p>
@@ -521,9 +656,75 @@ export default function WorkOrderDetailsPage() {
                   <p className="text-lg font-semibold">{workOrder.status}</p>
                 </div>
               </div>
+
+              {/* Alerts (inline, "in your face") */}
+              {alertsCount > 0 && (
+                <div className="md:col-span-2">
+                  <div className="border-l-4 border-l-red-600 bg-red-50/60 rounded-md p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-red-900">
+                        Board Alerts ({alertsCount})
+                      </div>
+                      {(showAllAlerts || alertsCount > 1 || isAlertOverflowing) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAllAlerts((v) => !v)}
+                        >
+                          {showAllAlerts ? 'Show less' : 'Show more…'}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {visibleAlerts.map((a: any, idx: number) => (
+                        <div
+                          key={a.id || idx}
+                          ref={!showAllAlerts && idx === 0 ? alertPreviewRef : undefined}
+                          className={`relative bg-white border rounded-md p-3 ${
+                            !showAllAlerts ? 'max-h-[9rem] overflow-hidden' : ''
+                          }`}
+                        >
+                          <div className="rich-text" dangerouslySetInnerHTML={{ __html: a.content }} />
+                          {!showAllAlerts && idx === 0 && isAlertOverflowing && (
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Reference image modal */}
+        <Dialog open={isReferenceImageOpen} onOpenChange={setIsReferenceImageOpen}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Reference Board</DialogTitle>
+              <DialogDescription>Example image for this board.</DialogDescription>
+            </DialogHeader>
+            {referenceImageUrl ? (
+              <div className="flex items-center justify-center">
+                <img
+                  src={referenceImageUrl}
+                  alt="Reference board large"
+                  className="max-h-[70vh] w-auto object-contain rounded border bg-white"
+                />
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No reference image.</div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsReferenceImageOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Work Order Dialog */}
         <Dialog open={isEditWorkOrderOpen} onOpenChange={setIsEditWorkOrderOpen}>
@@ -694,19 +895,19 @@ export default function WorkOrderDetailsPage() {
 
           <Card className="print:shadow-none print:border-0">
             <CardContent className="p-6 print:px-4 print:py-6">
-              <div className="flex items-center justify-between mb-6 print:mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 print:mb-8">
                 <h2 className="text-2xl font-bold print:text-xl">
                   Tickets ({workOrder.tickets?.length || 0})
                 </h2>
-                <div className="flex items-center gap-2 print:hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 print:hidden w-full sm:w-auto">
                   <Input
                     placeholder="Search tickets..."
                     value={ticketSearch}
                     onChange={(e) => setTicketSearch(e.target.value)}
-                    className="w-56"
+                    className="w-full sm:w-56"
                   />
                   <Select value={ticketSort} onValueChange={(v) => setTicketSort(v as any)}>
-                    <SelectTrigger className="w-52">
+                    <SelectTrigger className="w-full sm:w-52">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -719,96 +920,7 @@ export default function WorkOrderDetailsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
-                <DialogTrigger asChild>
-                  <Button className="print:hidden">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Ticket
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>Create New Ticket</DialogTitle>
-                    <DialogDescription>
-                      Report an issue with this work order.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="description">Description</Label>
-                      <RichTextEditor
-                        content={newTicket.description}
-                        onChange={(html) => setNewTicket({ ...newTicket, description: html })}
-                        placeholder="Describe the issue..."
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="impact">Impact</Label>
-                      <Select
-                        value={newTicket.impact}
-                        onValueChange={(value) => setNewTicket({ ...newTicket, impact: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="area">Area</Label>
-                      <Select
-                        value={newTicket.area_id}
-                        onValueChange={(value) => setNewTicket({ ...newTicket, area_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an area" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {areas.map((area: any) => (
-                            <SelectItem key={area.id} value={area.id}>
-                              {area.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Images (Optional)</Label>
-                      <ImageUpload
-                        onImagesSelected={setSelectedImages}
-                        maxFiles={5}
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Upload Progress */}
-                  {isUploading && (
-                    <div className="space-y-2 pt-2">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Uploading images...</span>
-                        <span>{uploadProgress}%</span>
-                      </div>
-                      <Progress value={uploadProgress} className="h-2" />
-                    </div>
-                  )}
-                  
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)} disabled={isUploading}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCreateTicket}
-                      disabled={createTicketMutation.isPending || isUploading || !newTicket.area_id || !newTicket.description}
-                    >
-                      {isUploading ? 'Uploading...' : createTicketMutation.isPending ? 'Creating...' : 'Create'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              {/* Create Ticket button moved to page header (left of Print Tickets) */}
             </div>
 
             {/* Edit Ticket Dialog */}

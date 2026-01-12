@@ -231,6 +231,54 @@ export const api = {
     });
   },
 
+  async uploadBoardReferenceImage(file: File, onProgress?: (progress: number) => void) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    return new Promise<{ url: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const progress = Math.round((e.loaded / e.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (error) {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          reject(new Error(`Failed to upload image: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('timeout', () => {
+        reject(new Error('Upload timeout'));
+      });
+
+      xhr.open('POST', `${API_URL}/boards/upload-reference`);
+      xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+      xhr.timeout = 120000; // 2 minute timeout
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    });
+  },
+
   // Areas
   async getAreas() {
     const headers = await getAuthHeaders();
@@ -414,6 +462,41 @@ export const api = {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to delete cycle time');
+    return response.json();
+  },
+
+  async addBoardAlert(boardId: string, data: { content: string }) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/${boardId}/alerts`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to add board alert');
+    return response.json();
+  },
+
+  async updateBoardAlert(alertId: string, data: { content?: string }) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/alerts/${alertId}`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update board alert');
+    return response.json();
+  },
+
+  async deleteBoardAlert(alertId: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/boards/alerts/${alertId}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete board alert');
     return response.json();
   },
 };

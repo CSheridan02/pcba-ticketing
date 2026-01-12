@@ -43,6 +43,14 @@ export class WorkOrdersService {
       throw new NotFoundException('Board not found');
     }
 
+    const { data: boardAlerts, error: boardAlertsError } = await supabase
+      .from('board_alerts')
+      .select('id, content, created_at')
+      .eq('board_id', createWorkOrderDto.board_id)
+      .order('created_at', { ascending: true });
+
+    if (boardAlertsError) throw boardAlertsError;
+
     const { data, error } = await supabase
       .from('work_orders')
       .insert([{
@@ -58,7 +66,25 @@ export class WorkOrdersService {
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Copy board alerts to the new work order as a snapshot
+    if ((boardAlerts?.length || 0) > 0) {
+      const payload = (boardAlerts || []).map((a: any) => ({
+        work_order_id: data.id,
+        board_alert_id: a.id,
+        content: a.content,
+      }));
+
+      const { error: insertAlertsError } = await supabase.from('work_order_alerts').insert(payload);
+      if (insertAlertsError) {
+        // Try to keep data consistent: remove the work order if we couldn't copy alerts.
+        await supabase.from('work_orders').delete().eq('id', data.id);
+        throw insertAlertsError;
+      }
+    }
+
+    // Return a consistent shape including alerts
+    return this.findOne(data.id);
   }
 
   async findAll(search?: string, status?: string, sortBy?: string) {
@@ -105,14 +131,17 @@ export class WorkOrdersService {
       .from('work_orders')
       .select(`
         *,
-        board:boards(id, asm_number, internal_g_number, description),
+        board:boards(id, asm_number, internal_g_number, description, reference_image_url),
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
+        alerts:work_order_alerts(*),
         tickets(
           *,
           area:areas(id, name),
           submitted_by_user:users!tickets_submitted_by_fkey(id, full_name)
         )
       `)
+      .order('created_at', { ascending: true, foreignTable: 'work_order_alerts' })
+      .order('created_at', { ascending: false, foreignTable: 'tickets' })
       .eq('id', id)
       .single();
 
