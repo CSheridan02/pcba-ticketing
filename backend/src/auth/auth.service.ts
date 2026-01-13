@@ -27,6 +27,8 @@ export class AuthService {
 
     return {
       id: user.id,
+      // Back-compat: some controllers/services expect `userId` (JwtStrategy returns both).
+      userId: user.id,
       email: user.email,
       full_name: profile.full_name,
       role: profile.role,
