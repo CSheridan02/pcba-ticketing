@@ -1,4 +1,4 @@
-import { IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateQualityTicketDto {
   @IsUUID()
@@ -18,6 +18,11 @@ export class CreateQualityTicketDto {
   @IsString({ each: true })
   @IsOptional()
   images?: string[];
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['Rework Needed', 'Closed'])
+  status?: string;
 }
 
 

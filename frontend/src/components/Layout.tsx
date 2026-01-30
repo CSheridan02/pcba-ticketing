@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { LayoutGrid, Settings, LogOut, Menu, X } from 'lucide-react';
 import AAONLogo from '@/assets/SVG/AAON_Digital_AAON_Digital_Blue.svg';
+import { NotificationsBell } from '@/components/NotificationsBell';
 
 interface LayoutProps {
   children: ReactNode;
@@ -78,6 +79,7 @@ export function Layout({ children }: LayoutProps) {
 
             {/* Right side - Desktop */}
             <div className="hidden md:flex items-center gap-3">
+              <NotificationsBell />
               <div className="text-sm text-right">
                 <div className="font-medium">{profile?.full_name}</div>
                 <div className="text-gray-500 text-xs capitalize">

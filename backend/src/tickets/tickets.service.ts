@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class TicketsService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(createTicketDto: CreateTicketDto, userId: string) {
     const supabase = this.supabaseService.getClient();
@@ -30,6 +34,19 @@ export class TicketsService {
       .single();
 
     if (error) throw error;
+
+    await this.notificationsService.emit({
+      eventType: 'ticket.created',
+      entityType: 'ticket',
+      entityId: data.id,
+      actorId: userId,
+      payload: {
+        ticket_id: data.id,
+        work_order_id: data.work_order_id ?? null,
+        ticket_number: data.ticket_number ?? null,
+      },
+    });
+
     return data;
   }
 
@@ -97,6 +114,14 @@ export class TicketsService {
       }
     }
 
+    // Fetch current for status diff
+    const { data: before, error: beforeErr } = await supabase
+      .from('tickets')
+      .select('id, status, work_order_id, ticket_number')
+      .eq('id', id)
+      .single();
+    if (beforeErr) throw new NotFoundException('Ticket not found');
+
     // Proceed with update (admins skip ownership check)
     const { data, error } = await supabase
       .from('tickets')
@@ -111,6 +136,23 @@ export class TicketsService {
       .single();
 
     if (error) throw error;
+
+    if (updateTicketDto?.status && before?.status !== data?.status) {
+      await this.notificationsService.emit({
+        eventType: 'ticket.status_changed',
+        entityType: 'ticket',
+        entityId: data.id,
+        actorId: userId,
+        payload: {
+          ticket_id: data.id,
+          work_order_id: data.work_order_id ?? null,
+          ticket_number: data.ticket_number ?? null,
+          from: before?.status ?? null,
+          to: data?.status ?? null,
+        },
+      });
+    }
+
     return data;
   }
 
@@ -165,6 +207,26 @@ export class TicketsService {
       .single();
 
     if (error) throw error;
+
+    const { data: parent } = await supabase
+      .from('tickets')
+      .select('id, work_order_id, ticket_number')
+      .eq('id', ticketId)
+      .single();
+
+    await this.notificationsService.emit({
+      eventType: 'ticket.comment_added',
+      entityType: 'ticket',
+      entityId: ticketId,
+      actorId: userId,
+      payload: {
+        ticket_id: ticketId,
+        work_order_id: parent?.work_order_id ?? null,
+        ticket_number: parent?.ticket_number ?? null,
+        comment_id: data.id,
+      },
+    });
+
     return data;
   }
 

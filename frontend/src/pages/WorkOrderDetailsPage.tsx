@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +26,7 @@ export default function WorkOrderDetailsPage() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const isQuality = profile?.role === 'quality';
+  const isRework = profile?.role === 'rework';
   const canEditWorkOrderWorkflow = isAdmin || isQuality;
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isCreateQualityTicketOpen, setIsCreateQualityTicketOpen] = useState(false);
@@ -46,6 +47,12 @@ export default function WorkOrderDetailsPage() {
   const [ticketSort, setTicketSort] = useState<'newest' | 'oldest' | 'impact_desc' | 'impact_asc' | 'status' | 'ticket_number'>('newest');
   const [newComment, setNewComment] = useState('');
   const [newQualityComment, setNewQualityComment] = useState('');
+  const [isRequestReviewOpen, setIsRequestReviewOpen] = useState(false);
+  const [requestReviewTarget, setRequestReviewTarget] = useState<{ ticketId: string; serial: string; ticketNumber?: string } | null>(null);
+  const [requestReviewNotes, setRequestReviewNotes] = useState('');
+  const [isSerialHistoryOpen, setIsSerialHistoryOpen] = useState(false);
+  const [serialHistory, setSerialHistory] = useState<{ ticketNumber?: string; serial?: string; requests?: any[] } | null>(null);
+  const [reviewDecisionByRequestId, setReviewDecisionByRequestId] = useState<Record<string, { outcome: 'Pass' | 'Fail'; notes: string }>>({});
   const [newTicket, setNewTicket] = useState({
     description: '',
     impact: 'Medium',
@@ -93,13 +100,13 @@ export default function WorkOrderDetailsPage() {
     status === 'Completed';
 
   useEffect(() => {
-    // Default tab: Quality users land on Quality tickets; everyone else defaults to Operator tickets.
-    if (isQuality) {
+    // Default tab: Quality/Rework users land on Quality tickets; everyone else defaults to Operator tickets.
+    if (isQuality || isRework) {
       setTicketTab('quality');
     } else if (!isAdmin) {
       setTicketTab('operator');
     }
-  }, [isQuality, isAdmin]);
+  }, [isQuality, isRework, isAdmin]);
 
   useEffect(() => {
     // Quality tickets don't support impact/status sorting; keep UX predictable.
@@ -342,6 +349,70 @@ export default function WorkOrderDetailsPage() {
     queryKey: ['quality-ticket-comments', viewQualityTicket?.id],
     queryFn: () => api.getQualityTicketComments(viewQualityTicket.id),
     enabled: !!viewQualityTicket?.id && isViewQualityTicketOpen,
+  });
+
+  const canCreateTickets = isAdmin || isQuality || profile?.role === 'line_operator';
+
+  // Rework/Quality notifications: review requests per quality ticket
+  const qualityTicketsForReviewRequests: any[] = useMemo(
+    () => (Array.isArray(workOrder?.quality_tickets) ? workOrder.quality_tickets : []),
+    [workOrder?.quality_tickets],
+  );
+
+  const pendingReviewRequestQueries = useQueries({
+    queries: qualityTicketsForReviewRequests.map((t: any) => ({
+      queryKey: ['quality-review-requests', t.id, isRework ? 'All' : 'Pending'],
+      queryFn: () => api.getQualityTicketReviewRequests(t.id, isRework ? undefined : 'Pending'),
+      enabled: !!t?.id && ticketTab === 'quality' && (isAdmin || isQuality || isRework),
+      staleTime: 10_000,
+    })),
+  });
+
+  const pendingReviewRequestsByTicketId = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (let i = 0; i < qualityTicketsForReviewRequests.length; i++) {
+      const ticketId = qualityTicketsForReviewRequests[i]?.id;
+      if (!ticketId) continue;
+      map[ticketId] = (pendingReviewRequestQueries[i]?.data as any[]) || [];
+    }
+    return map;
+  }, [pendingReviewRequestQueries, qualityTicketsForReviewRequests]);
+
+  const { data: pendingQualityReviewRequests = [], isLoading: isQualityReviewRequestsLoading } = useQuery({
+    queryKey: ['quality-review-requests', viewQualityTicket?.id, 'Pending'],
+    queryFn: () => api.getQualityTicketReviewRequests(viewQualityTicket.id, 'Pending'),
+    enabled: !!viewQualityTicket?.id && isViewQualityTicketOpen && (isAdmin || isQuality),
+  });
+
+  const { data: reviewedQualityReviewRequests = [], isLoading: isReviewedQualityReviewRequestsLoading } = useQuery({
+    queryKey: ['quality-review-requests', viewQualityTicket?.id, 'Reviewed'],
+    queryFn: () => api.getQualityTicketReviewRequests(viewQualityTicket.id, 'Reviewed'),
+    enabled: !!viewQualityTicket?.id && isViewQualityTicketOpen && (isAdmin || isQuality),
+  });
+
+  const requestQualityReviewMutation = useMutation({
+    mutationFn: ({ ticketId, serialNumber, reworkNotes }: { ticketId: string; serialNumber: string; reworkNotes?: string }) =>
+      api.requestQualityReview(ticketId, serialNumber, reworkNotes),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['quality-review-requests', variables.ticketId] });
+    },
+  });
+
+  const markReviewRequestReviewedMutation = useMutation({
+    mutationFn: ({ requestId, outcome, reviewNotes }: { requestId: string; outcome: 'Pass' | 'Fail'; reviewNotes?: string }) =>
+      api.markQualityReviewRequestReviewed(requestId, outcome, reviewNotes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quality-review-requests'] });
+    },
+  });
+
+  const updateQualityTicketStatusMutation = useMutation({
+    mutationFn: ({ ticketId, status }: { ticketId: string; status: string }) =>
+      api.updateQualityTicket(ticketId, { status }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      setViewQualityTicket((prev: any) => (prev && prev.id === variables.ticketId ? { ...prev, status: variables.status } : prev));
+    },
   });
 
   const addCommentMutation = useMutation({
@@ -716,6 +787,8 @@ export default function WorkOrderDetailsPage() {
             Back to Work Orders
           </Button>
           <div className="flex flex-col xs:flex-row xs:items-center xs:justify-end gap-2">
+            {canCreateTickets && (
+              <>
             <Button
               className="w-full xs:w-auto"
               onClick={() => {
@@ -888,6 +961,8 @@ export default function WorkOrderDetailsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+              </>
+            )}
 
             <Button className="w-full xs:w-auto" variant="outline" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
@@ -895,6 +970,143 @@ export default function WorkOrderDetailsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Rework: Request Quality Review Popup */}
+        <Dialog
+          open={isRequestReviewOpen}
+          onOpenChange={(open) => {
+            setIsRequestReviewOpen(open);
+            if (!open) {
+              setRequestReviewTarget(null);
+              setRequestReviewNotes('');
+            }
+          }}
+        >
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Request Quality Review</DialogTitle>
+              <DialogDescription>
+                {requestReviewTarget?.ticketNumber
+                  ? `Ticket ${requestReviewTarget.ticketNumber} • Serial ${requestReviewTarget.serial}`
+                  : 'Add notes for Quality before sending this serial for review.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="rework-notes">What was done / notes for Quality</Label>
+              <Textarea
+                id="rework-notes"
+                value={requestReviewNotes}
+                onChange={(e) => setRequestReviewNotes(e.target.value)}
+                placeholder="Example: Replaced U12, reflowed J3, cleaned flux, verified continuity on TP5…"
+                rows={6}
+              />
+              <div className="text-xs text-gray-500">
+                Optional, but recommended so Quality knows what to re-check.
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsRequestReviewOpen(false)}
+                disabled={requestQualityReviewMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!requestReviewTarget?.ticketId || !requestReviewTarget?.serial) return;
+                  requestQualityReviewMutation.mutate(
+                    {
+                      ticketId: requestReviewTarget.ticketId,
+                      serialNumber: requestReviewTarget.serial,
+                      reworkNotes: requestReviewNotes.trim() || undefined,
+                    },
+                    {
+                      onSuccess: () => {
+                        setIsRequestReviewOpen(false);
+                        setRequestReviewTarget(null);
+                        setRequestReviewNotes('');
+                      },
+                    },
+                  );
+                }}
+                disabled={!requestReviewTarget?.ticketId || !requestReviewTarget?.serial || requestQualityReviewMutation.isPending}
+              >
+                {requestQualityReviewMutation.isPending ? 'Sending…' : 'Send to Quality'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Rework: Serial history / notes */}
+        <Dialog
+          open={isSerialHistoryOpen}
+          onOpenChange={(open) => {
+            setIsSerialHistoryOpen(open);
+            if (!open) setSerialHistory(null);
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Serial details</DialogTitle>
+              <DialogDescription>
+                {serialHistory?.ticketNumber && serialHistory?.serial
+                  ? `Ticket ${serialHistory.ticketNumber} • Serial ${serialHistory.serial}`
+                  : 'Review request history'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {!serialHistory?.requests || serialHistory.requests.length === 0 ? (
+              <div className="text-sm text-gray-500">No history.</div>
+            ) : (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {serialHistory.requests.map((r: any) => (
+                  <div key={r.id} className="border rounded-md p-3 bg-white">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="bg-gray-50 text-gray-700">
+                        {r.status}
+                      </Badge>
+                      {r.review_outcome && (
+                        <Badge className={r.review_outcome === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          {r.review_outcome}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Requested: {r.requested_at ? new Date(r.requested_at).toLocaleString() : ''} •{' '}
+                      {r.requested_by_user?.full_name || 'Unknown'}
+                    </div>
+                    {r.rework_notes && (
+                      <div className="mt-2 text-sm whitespace-pre-wrap border rounded-md p-2 bg-gray-50">
+                        <div className="text-xs font-medium text-gray-600 mb-1">Rework notes</div>
+                        {r.rework_notes}
+                      </div>
+                    )}
+                    {r.reviewed_at && (
+                      <div className="text-xs text-gray-600 mt-2">
+                        Reviewed: {new Date(r.reviewed_at).toLocaleString()} • {r.reviewed_by_user?.full_name || 'Unknown'}
+                      </div>
+                    )}
+                    {r.review_notes && (
+                      <div className="mt-2 text-sm whitespace-pre-wrap border rounded-md p-2 bg-amber-50/40">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Quality notes</div>
+                        {r.review_notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsSerialHistoryOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Work Order Details */}
         <Card className="print:hidden">
@@ -1661,101 +1873,280 @@ export default function WorkOrderDetailsPage() {
                     </Card>
                   ))
                 ) : (
-                  displayQualityTickets.map((ticket: any) => (
-                    <Card
-                      key={ticket.id}
-                      className="border-l-4 border-l-purple-600 cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
-                      onClick={() => handleViewQualityTicket(ticket)}
-                    >
-                      <CardContent className="p-4 print:p-5">
-                        <div className="space-y-3">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center flex-wrap gap-2 mb-2">
-                                <span className="font-mono text-sm font-medium">
-                                  {ticket.quality_ticket_number}
-                                </span>
-                                <Badge variant="outline" className="bg-purple-50 text-purple-700">
-                                  {(Array.isArray(ticket.serial_numbers) ? ticket.serial_numbers : []).length} Serial(s)
-                                </Badge>
-                              </div>
-                              {Array.isArray(ticket.serial_numbers) && ticket.serial_numbers.length > 0 && (
-                                <div className="text-sm text-gray-700 font-mono">
-                                  {ticket.serial_numbers.slice(0, 6).join(', ')}
-                                  {ticket.serial_numbers.length > 6 ? '…' : ''}
-                                </div>
-                              )}
-                            </div>
+                  isRework ? (
+                    displayQualityTickets.map((ticket: any) => {
+                      const reqs = pendingReviewRequestsByTicketId[ticket.id] || [];
+                      const requestsBySerial: Record<string, any[]> = {};
+                      for (const r of reqs) {
+                        const sn = String(r.serial_number || '').trim().toUpperCase();
+                        if (!sn) continue;
+                        requestsBySerial[sn] = requestsBySerial[sn] || [];
+                        requestsBySerial[sn].push(r);
+                      }
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="flex items-center gap-1 text-sm text-gray-500">
-                                <Clock className="h-4 w-4" />
-                                <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
-                              </div>
-                              {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
-                                <div className="flex items-center gap-1 print:hidden">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditQualityClick(ticket);
-                                    }}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteQualityClick(ticket);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div
-                            className="text-gray-700 ticket-description"
-                            dangerouslySetInnerHTML={{ __html: ticket.description }}
-                          />
-
-                          {ticket.images && ticket.images.length > 0 && (
-                            <div className="flex flex-wrap gap-2 print:hidden">
-                              {ticket.images.map((url: string, idx: number) => (
-                                <a
-                                  key={idx}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="relative group"
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`Attachment ${idx + 1}`}
-                                    className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
-                                    <ExternalLink className="h-5 w-5 text-white" />
+                      return (
+                        <Card
+                          key={ticket.id}
+                          className="border-l-4 border-l-purple-600 cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
+                          onClick={() => handleViewQualityTicket(ticket)}
+                        >
+                          <CardContent className="p-4 print:p-5">
+                            <div className="space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                                    <span className="font-mono text-sm font-medium">{ticket.quality_ticket_number}</span>
+                                    <Badge variant="outline" className="bg-gray-50 text-gray-700">
+                                      {ticket.status || 'Rework Needed'}
+                                    </Badge>
+                                    {reqs.length > 0 && (
+                                      <Badge className="bg-amber-100 text-amber-800">
+                                        Review Requested ({reqs.length})
+                                      </Badge>
+                                    )}
                                   </div>
-                                </a>
-                              ))}
-                            </div>
-                          )}
+                                </div>
 
-                          <div className="text-sm text-gray-600">
-                            Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="flex items-center gap-1 text-sm text-gray-500">
+                                    <Clock className="h-4 w-4" />
+                                    <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div
+                                className="text-gray-700 ticket-description"
+                                dangerouslySetInnerHTML={{ __html: ticket.description }}
+                              />
+
+                              {ticket.images && ticket.images.length > 0 && (
+                                <div className="flex flex-wrap gap-2 print:hidden">
+                                  {ticket.images.map((url: string, idx: number) => (
+                                    <a
+                                      key={idx}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="relative group"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <img
+                                        src={url}
+                                        alt={`Attachment ${idx + 1}`}
+                                        className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                        <ExternalLink className="h-5 w-5 text-white" />
+                                      </div>
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              {Array.isArray(ticket.serial_numbers) && ticket.serial_numbers.length > 0 && (
+                                <div className="space-y-2">
+                                  {ticket.serial_numbers.map((sn: any, idx: number) => {
+                                    const serial = String(sn || '').trim().toUpperCase();
+                                    const serialReqs = requestsBySerial[serial] || [];
+                                    const isPending = serialReqs.some((r: any) => r.status === 'Pending');
+                                    const lastReviewed = serialReqs
+                                      .filter((r: any) => r.status === 'Reviewed')
+                                      .sort((a: any, b: any) => new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime())[0];
+                                    const isSuccessfullyReworked = lastReviewed?.review_outcome === 'Pass';
+                                    const wasSentBack = lastReviewed?.review_outcome === 'Fail';
+                                    return (
+                                      <div
+                                        key={`${serial}-${idx}`}
+                                        className="flex items-center justify-between gap-2 border rounded-md px-3 py-2 bg-white"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <span className="font-mono text-sm">{serial}</span>
+                                          {isPending && (
+                                            <Badge className="bg-amber-100 text-amber-800">Requested</Badge>
+                                          )}
+                                            {!isPending && (serialReqs.length > 0) && (
+                                              <Badge variant="outline" className="bg-gray-50 text-gray-700">Reworked</Badge>
+                                            )}
+                                            {lastReviewed?.review_outcome && (
+                                              <Badge className={lastReviewed.review_outcome === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                                {lastReviewed.review_outcome}
+                                              </Badge>
+                                            )}
+                                            {lastReviewed?.review_outcome === 'Fail' && (
+                                              <Badge className="bg-red-100 text-red-800">Sent Back</Badge>
+                                            )}
+                                            {lastReviewed?.review_outcome === 'Pass' && (
+                                              <Badge className="bg-green-100 text-green-800">Successfully Reworked</Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {(lastReviewed?.review_notes || lastReviewed?.rework_notes) && (
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-8 px-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Don't trigger "open ticket" click
+                                            // (card is clickable for Rework so they can view images/details)
+                                                setSerialHistory({
+                                                  ticketNumber: ticket.quality_ticket_number,
+                                                  serial,
+                                                  requests: [...serialReqs].sort(
+                                                    (a: any, b: any) =>
+                                                      new Date(b.requested_at || 0).getTime() - new Date(a.requested_at || 0).getTime(),
+                                                  ),
+                                                });
+                                                setIsSerialHistoryOpen(true);
+                                              }}
+                                            >
+                                              View details
+                                            </Button>
+                                          )}
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          disabled={isPending || requestQualityReviewMutation.isPending || isSuccessfullyReworked}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Don't trigger "open ticket" click
+                                            setRequestReviewTarget({
+                                              ticketId: ticket.id,
+                                              serial,
+                                              ticketNumber: ticket.quality_ticket_number,
+                                            });
+                                            setRequestReviewNotes('');
+                                            setIsRequestReviewOpen(true);
+                                          }}
+                                        >
+                                          {wasSentBack ? 'Re-request Review' : 'Request Quality Review'}
+                                        </Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              <div className="text-sm text-gray-600">
+                                Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  ) : (
+                    displayQualityTickets.map((ticket: any) => {
+                      const pendingCount = (pendingReviewRequestsByTicketId[ticket.id] || []).length;
+                      return (
+                        <Card
+                          key={ticket.id}
+                          className="border-l-4 border-l-purple-600 cursor-pointer hover:bg-gray-50/50 transition-colors print:cursor-default print:hover:bg-transparent print:shadow-none print:border print:border-gray-400 print:page-break-inside-avoid print:mb-4"
+                          onClick={() => handleViewQualityTicket(ticket)}
+                        >
+                          <CardContent className="p-4 print:p-5">
+                            <div className="space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                                    <span className="font-mono text-sm font-medium">
+                                      {ticket.quality_ticket_number}
+                                    </span>
+                                    <Badge variant="outline" className="bg-gray-50 text-gray-700">
+                                      {ticket.status || 'Rework Needed'}
+                                    </Badge>
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                                      {(Array.isArray(ticket.serial_numbers) ? ticket.serial_numbers : []).length} Serial(s)
+                                    </Badge>
+                                    {pendingCount > 0 && (
+                                      <Badge className="bg-amber-100 text-amber-800">
+                                        Review Requested ({pendingCount})
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {Array.isArray(ticket.serial_numbers) && ticket.serial_numbers.length > 0 && (
+                                    <div className="text-sm text-gray-700 font-mono">
+                                      {ticket.serial_numbers.slice(0, 6).join(', ')}
+                                      {ticket.serial_numbers.length > 6 ? '…' : ''}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="flex items-center gap-1 text-sm text-gray-500">
+                                    <Clock className="h-4 w-4" />
+                                    <span className="whitespace-nowrap">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                  {(profile?.role === 'admin' || profile?.id === ticket.submitted_by) && (
+                                    <div className="flex items-center gap-1 print:hidden">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditQualityClick(ticket);
+                                        }}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteQualityClick(ticket);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                className="text-gray-700 ticket-description"
+                                dangerouslySetInnerHTML={{ __html: ticket.description }}
+                              />
+
+                              {ticket.images && ticket.images.length > 0 && (
+                                <div className="flex flex-wrap gap-2 print:hidden">
+                                  {ticket.images.map((url: string, idx: number) => (
+                                    <a
+                                      key={idx}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="relative group"
+                                    >
+                                      <img
+                                        src={url}
+                                        alt={`Attachment ${idx + 1}`}
+                                        className="h-20 w-20 object-cover rounded border hover:opacity-80 transition-opacity"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                        <ExternalLink className="h-5 w-5 text-white" />
+                                      </div>
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="text-sm text-gray-600">
+                                Submitted by: {ticket.submitted_by_user?.full_name || 'Unknown'}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )
                 )}
               </div>
             )}
@@ -1955,7 +2346,161 @@ export default function WorkOrderDetailsPage() {
                         Submitted by: {viewQualityTicket.submitted_by_user?.full_name || 'Unknown'} •{' '}
                         {new Date(viewQualityTicket.created_at).toLocaleString()}
                       </div>
+
+                      {(isAdmin || isQuality) && (
+                        <div className="grid sm:grid-cols-2 gap-3 print:hidden">
+                          <div>
+                            <Label htmlFor="quality-ticket-status">Status</Label>
+                            <Select
+                              value={viewQualityTicket.status || 'Rework Needed'}
+                              onValueChange={(value) =>
+                                updateQualityTicketStatusMutation.mutate({ ticketId: viewQualityTicket.id, status: value })
+                              }
+                            >
+                              <SelectTrigger id="quality-ticket-status" className="w-56">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Rework Needed">Rework Needed</SelectItem>
+                                <SelectItem value="Closed">Closed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
                     </div>
+
+                    {(isAdmin || isQuality) && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-700">Rework Review Requests</div>
+                        {isQualityReviewRequestsLoading ? (
+                          <div className="text-sm text-gray-500">Loading review requests...</div>
+                        ) : pendingQualityReviewRequests.length === 0 ? (
+                          <div className="text-sm text-gray-500">No pending review requests.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {pendingQualityReviewRequests.map((r: any) => (
+                              <div key={r.id} className="border rounded-md p-3 bg-amber-50/40">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-sm font-medium">{r.serial_number}</span>
+                                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
+                                    </div>
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      Requested by: {r.requested_by_user?.full_name || 'Unknown'} •{' '}
+                                      {new Date(r.requested_at).toLocaleString()}
+                                    </div>
+                                    {r.rework_notes && (
+                                      <div className="mt-2 text-sm text-gray-800 whitespace-pre-wrap border rounded-md p-2 bg-white">
+                                        {r.rework_notes}
+                                      </div>
+                                    )}
+                                    <div className="mt-3 grid sm:grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-xs">Outcome</Label>
+                                        <Select
+                                          value={(reviewDecisionByRequestId[r.id]?.outcome || 'Pass') as any}
+                                          onValueChange={(value) =>
+                                            setReviewDecisionByRequestId((prev) => ({
+                                              ...prev,
+                                              [r.id]: { outcome: value as 'Pass' | 'Fail', notes: prev[r.id]?.notes || '' },
+                                            }))
+                                          }
+                                        >
+                                          <SelectTrigger className="h-9">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Pass">Pass</SelectItem>
+                                            <SelectItem value="Fail">Fail</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">Quality Notes (optional)</Label>
+                                        <Input
+                                          value={reviewDecisionByRequestId[r.id]?.notes || ''}
+                                          onChange={(e) =>
+                                            setReviewDecisionByRequestId((prev) => ({
+                                              ...prev,
+                                              [r.id]: { outcome: prev[r.id]?.outcome || 'Pass', notes: e.target.value },
+                                            }))
+                                          }
+                                          placeholder="Quick note…"
+                                          className="h-9"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={markReviewRequestReviewedMutation.isPending}
+                                    onClick={() => {
+                                      const decision = reviewDecisionByRequestId[r.id];
+                                      const outcome = decision?.outcome || 'Pass';
+                                      const reviewNotes = (decision?.notes || '').trim() || undefined;
+                                      markReviewRequestReviewedMutation.mutate({ requestId: r.id, outcome, reviewNotes });
+                                    }}
+                                  >
+                                    Mark Reviewed
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="pt-3">
+                          <div className="text-sm font-medium text-gray-700">Reviewed (confirmation)</div>
+                          {isReviewedQualityReviewRequestsLoading ? (
+                            <div className="text-sm text-gray-500">Loading reviewed…</div>
+                          ) : reviewedQualityReviewRequests.length === 0 ? (
+                            <div className="text-sm text-gray-500">No reviewed serials yet.</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {reviewedQualityReviewRequests.slice(0, 10).map((r: any) => (
+                                <div key={r.id} className="border rounded-md p-3 bg-gray-50/40">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-sm font-medium">{r.serial_number}</span>
+                                        {r.review_outcome && (
+                                          <Badge className={r.review_outcome === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                            {r.review_outcome}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-gray-600 mt-1">
+                                        Reviewed by: {r.reviewed_by_user?.full_name || 'Unknown'} •{' '}
+                                        {r.reviewed_at ? new Date(r.reviewed_at).toLocaleString() : ''}
+                                      </div>
+                                      {r.rework_notes && (
+                                        <div className="mt-2 text-sm text-gray-800 whitespace-pre-wrap border rounded-md p-2 bg-white">
+                                          <div className="text-xs font-medium text-gray-600 mb-1">Rework notes</div>
+                                          {r.rework_notes}
+                                        </div>
+                                      )}
+                                      {r.review_notes && (
+                                        <div className="mt-2 text-sm text-gray-800 whitespace-pre-wrap border rounded-md p-2 bg-white">
+                                          <div className="text-xs font-medium text-gray-700 mb-1">Quality notes</div>
+                                          {r.review_notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {reviewedQualityReviewRequests.length > 10 && (
+                                <div className="text-xs text-gray-500">Showing latest 10.</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <div className="text-sm font-medium text-gray-700">Description</div>

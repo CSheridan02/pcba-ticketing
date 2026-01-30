@@ -189,7 +189,13 @@ export default function SettingsPage() {
                             variant={user.role === 'admin' ? 'default' : 'secondary'}
                             className={user.role === 'admin' ? 'bg-blue-600' : ''}
                           >
-                            {user.role === 'admin' ? 'Admin' : 'Operator'}
+                          {user.role === 'admin'
+                            ? 'Admin'
+                            : user.role === 'quality'
+                              ? 'Quality'
+                              : user.role === 'rework'
+                                ? 'Rework'
+                                : 'Operator'}
                           </Badge>
                         </div>
                         <div className="text-sm text-gray-500 truncate">{user.email || 'No email'}</div>
@@ -221,6 +227,7 @@ export default function SettingsPage() {
                         <SelectContent>
                           <SelectItem value="line_operator">Operator</SelectItem>
                           <SelectItem value="quality">Quality</SelectItem>
+                          <SelectItem value="rework">Rework</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>

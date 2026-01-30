@@ -21,6 +21,8 @@ import { QualityTicketsService } from './quality-tickets.service';
 import { CreateQualityTicketDto } from './dto/create-quality-ticket.dto';
 import { UpdateQualityTicketDto } from './dto/update-quality-ticket.dto';
 import { CreateQualityTicketCommentDto } from './dto/create-quality-ticket-comment.dto';
+import { CreateQualityReviewRequestDto } from './dto/create-quality-review-request.dto';
+import { MarkQualityReviewRequestReviewedDto } from './dto/mark-quality-review-request-reviewed.dto';
 
 @Controller('quality-tickets')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,10 +31,14 @@ export class QualityTicketsController {
 
   constructor(private qualityTicketsService: QualityTicketsService) {}
 
+  private getUserId(req: any): string {
+    return req?.user?.userId ?? req?.user?.id;
+  }
+
   @Post()
   @Roles('admin', 'quality')
   create(@Body() createDto: CreateQualityTicketDto, @Request() req) {
-    return this.qualityTicketsService.create(createDto, req.user.userId);
+    return this.qualityTicketsService.create(createDto, this.getUserId(req));
   }
 
   @Get()
@@ -52,19 +58,49 @@ export class QualityTicketsController {
 
   @Post(':id/comments')
   addComment(@Param('id') id: string, @Body() body: CreateQualityTicketCommentDto, @Request() req) {
-    return this.qualityTicketsService.addComment(id, body.comment, req.user.userId);
+    return this.qualityTicketsService.addComment(id, body.comment, this.getUserId(req));
   }
 
   @Patch(':id')
   @Roles('admin', 'quality')
   update(@Param('id') id: string, @Body() updateDto: UpdateQualityTicketDto, @Request() req) {
-    return this.qualityTicketsService.update(id, updateDto, req.user.userId, req.user.role);
+    return this.qualityTicketsService.update(id, updateDto, this.getUserId(req), req.user.role);
+  }
+
+  @Get(':id/review-requests')
+  @Roles('admin', 'quality', 'rework')
+  listReviewRequests(
+    @Param('id') id: string,
+    @Query('status') status?: 'Pending' | 'Reviewed',
+  ) {
+    return this.qualityTicketsService.listReviewRequests(id, status);
+  }
+
+  @Post(':id/review-requests')
+  @Roles('admin', 'rework')
+  requestQualityReview(@Param('id') id: string, @Body() body: CreateQualityReviewRequestDto, @Request() req) {
+    return this.qualityTicketsService.requestQualityReview(id, body.serial_number, this.getUserId(req), body.rework_notes);
+  }
+
+  @Patch('review-requests/:requestId/reviewed')
+  @Roles('admin', 'quality')
+  markReviewRequestReviewed(
+    @Param('requestId') requestId: string,
+    @Body() body: MarkQualityReviewRequestReviewedDto,
+    @Request() req,
+  ) {
+    return this.qualityTicketsService.markReviewRequestReviewed(
+      requestId,
+      this.getUserId(req),
+      body.outcome,
+      body.review_notes,
+    );
   }
 
   @Delete(':id')
   @Roles('admin', 'quality')
   remove(@Param('id') id: string, @Request() req) {
-    return this.qualityTicketsService.remove(id, req.user.userId, req.user.role);
+    return this.qualityTicketsService.remove(id, this.getUserId(req), req.user.role);
   }
 
   @Post('upload')
@@ -90,7 +126,7 @@ export class QualityTicketsController {
       }
     }
 
-    return this.qualityTicketsService.uploadImages(files, req.user.userId);
+    return this.qualityTicketsService.uploadImages(files, this.getUserId(req));
   }
 }
 

@@ -368,6 +368,8 @@ export default function WorkOrdersPage() {
     );
   };
 
+  const isQualityFail = (wo: any) => wo?.quality_result === 'Fail';
+
   return (
     <Layout>
       <div className="space-y-4 sm:space-y-6">
@@ -417,6 +419,11 @@ export default function WorkOrdersPage() {
                       {selectedBoard.internal_g_number && (
                         <div>
                           <span className="font-medium">G#:</span> {selectedBoard.internal_g_number}
+                        </div>
+                      )}
+                      {selectedBoard.revision && (
+                        <div>
+                          <span className="font-medium">Revision:</span> {selectedBoard.revision}
                         </div>
                       )}
                       <div className="truncate">
@@ -827,7 +834,9 @@ export default function WorkOrdersPage() {
                 {activeWorkOrders.map((wo: any) => (
                   <Card
                     key={wo.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className={`cursor-pointer hover:shadow-md transition-shadow ${
+                      isQualityFail(wo) ? 'ring-2 ring-red-500 ring-inset bg-red-50/30' : ''
+                    }`}
                     onClick={() => navigate(`/work-orders/${wo.id}`)}
                   >
                     <CardHeader className="pb-3">
@@ -889,7 +898,9 @@ export default function WorkOrdersPage() {
               workOrders.map((wo: any) => (
                 <Card
                   key={wo.id}
-                  className="cursor-pointer hover:shadow-sm transition-shadow"
+                  className={`cursor-pointer hover:shadow-sm transition-shadow ${
+                    isQualityFail(wo) ? 'ring-2 ring-red-500 ring-inset bg-red-50/30' : ''
+                  }`}
                   onClick={() => navigate(`/work-orders/${wo.id}`)}
                 >
                   <CardContent className="p-4 space-y-2">
@@ -984,7 +995,11 @@ export default function WorkOrdersPage() {
                   workOrders.map((wo: any) => (
                     <tr
                       key={wo.id}
-                      className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                      className={`border-b cursor-pointer transition-colors ${
+                        isQualityFail(wo)
+                          ? 'bg-red-50/30 hover:bg-red-50/60 outline outline-2 outline-red-500 outline-offset-[-2px]'
+                          : 'hover:bg-gray-50'
+                      }`}
                       onClick={() => navigate(`/work-orders/${wo.id}`)}
                     >
                       <td className="p-4">

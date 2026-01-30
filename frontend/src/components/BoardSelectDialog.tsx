@@ -12,6 +12,7 @@ export type BoardSummary = {
   asm_number: string;
   internal_g_number?: string | null;
   description: string;
+  revision?: string | null;
 };
 
 export function BoardSelectDialog(props: {
@@ -76,6 +77,7 @@ export function BoardSelectDialog(props: {
                         asm_number: b.asm_number,
                         internal_g_number: b.internal_g_number,
                         description: b.description,
+                        revision: b.revision,
                       });
                       setOpen(false);
                     }}
@@ -85,6 +87,11 @@ export function BoardSelectDialog(props: {
                       {b.internal_g_number && (
                         <Badge variant="outline" className="font-normal">
                           {b.internal_g_number}
+                        </Badge>
+                      )}
+                      {b.revision && (
+                        <Badge variant="secondary" className="font-normal">
+                          Rev {b.revision}
                         </Badge>
                       )}
                     </div>

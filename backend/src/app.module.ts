@@ -10,6 +10,7 @@ import { WorkOrdersModule } from './work-orders/work-orders.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { BoardsModule } from './boards/boards.module';
 import { QualityTicketsModule } from './quality-tickets/quality-tickets.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import supabaseConfig from './config/supabase.config';
 
 @Module({
@@ -26,6 +27,7 @@ import supabaseConfig from './config/supabase.config';
     WorkOrdersModule,
     TicketsModule,
     QualityTicketsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

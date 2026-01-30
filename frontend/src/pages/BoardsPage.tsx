@@ -32,12 +32,14 @@ export default function BoardsPage() {
     asm_number: '',
     internal_g_number: '',
     description: '',
+    revision: '',
   });
 
   const [editBoard, setEditBoard] = useState({
     asm_number: '',
     internal_g_number: '',
     description: '',
+    revision: '',
     reference_image_url: null as string | null,
   });
 
@@ -76,7 +78,7 @@ export default function BoardsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       setIsCreateOpen(false);
-      setNewBoard({ asm_number: '', internal_g_number: '', description: '' });
+      setNewBoard({ asm_number: '', internal_g_number: '', description: '', revision: '' });
       setNewReferenceFile(null);
       setNewReferencePreview(null);
       setReferenceUploadProgress(0);
@@ -193,6 +195,7 @@ export default function BoardsPage() {
         asm_number: newBoard.asm_number.trim(),
         internal_g_number: newBoard.internal_g_number.trim() || undefined,
         description: newBoard.description.trim(),
+        revision: newBoard.revision.trim() || undefined,
         reference_image_url,
       });
     } catch (e: any) {
@@ -209,6 +212,7 @@ export default function BoardsPage() {
       asm_number: board.asm_number || '',
       internal_g_number: board.internal_g_number || '',
       description: board.description || '',
+      revision: board.revision || '',
       reference_image_url: board.reference_image_url ?? null,
     });
     setEditReferenceFile(null);
@@ -237,6 +241,7 @@ export default function BoardsPage() {
           asm_number: editBoard.asm_number.trim() || undefined,
           internal_g_number: editBoard.internal_g_number.trim() || undefined,
           description: editBoard.description.trim() || undefined,
+          revision: editBoard.revision.trim() || undefined,
           reference_image_url,
         },
       });
@@ -302,6 +307,15 @@ export default function BoardsPage() {
                     placeholder="Board description/name"
                     value={newBoard.description}
                     onChange={(e) => setNewBoard({ ...newBoard, description: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new_revision">Revision</Label>
+                  <Input
+                    id="new_revision"
+                    placeholder="e.g., A, B, Rev 1.0"
+                    value={newBoard.revision}
+                    onChange={(e) => setNewBoard({ ...newBoard, revision: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -802,6 +816,15 @@ export default function BoardsPage() {
                   id="edit_desc"
                   value={editBoard.description}
                   onChange={(e) => setEditBoard({ ...editBoard, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_revision">Revision</Label>
+                <Input
+                  id="edit_revision"
+                  placeholder="e.g., A, B, Rev 1.0"
+                  value={editBoard.revision}
+                  onChange={(e) => setEditBoard({ ...editBoard, revision: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

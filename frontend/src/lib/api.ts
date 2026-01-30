@@ -347,6 +347,43 @@ export const api = {
     return response.json();
   },
 
+  async getQualityTicketReviewRequests(qualityTicketId: string, status?: 'Pending' | 'Reviewed') {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    const url = `${API_URL}/quality-tickets/${qualityTicketId}/review-requests${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch quality review requests');
+    return response.json();
+  },
+
+  async requestQualityReview(qualityTicketId: string, serial_number: string, rework_notes?: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/${qualityTicketId}/review-requests`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ serial_number, rework_notes }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to request quality review');
+    return response.json();
+  },
+
+  async markQualityReviewRequestReviewed(requestId: string, outcome: 'Pass' | 'Fail', review_notes?: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/quality-tickets/review-requests/${requestId}/reviewed`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ outcome, review_notes }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to mark review request as reviewed');
+    return response.json();
+  },
+
   async uploadQualityTicketImages(files: File[], onProgress?: (progress: number) => void) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -419,6 +456,40 @@ export const api = {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to update work order quality result');
+    return response.json();
+  },
+
+  // Notifications
+  async getNotifications(opts?: { unreadOnly?: boolean; limit?: number }) {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    if (opts?.unreadOnly) params.append('unreadOnly', 'true');
+    if (opts?.limit) params.append('limit', String(opts.limit));
+    const url = `${API_URL}/notifications${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, { headers, credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to fetch notifications');
+    return response.json();
+  },
+
+  async markNotificationRead(id: string) {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to mark notification read');
+    return response.json();
+  },
+
+  async markAllNotificationsRead() {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/notifications/read-all`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to mark all notifications read');
     return response.json();
   },
 

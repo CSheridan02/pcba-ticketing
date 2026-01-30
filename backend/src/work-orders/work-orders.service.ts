@@ -2,18 +2,29 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type SerialRange = { start?: string; end?: string };
 
 @Injectable()
 export class WorkOrdersService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   private readonly QUALITY_VISIBLE_STATUSES = [
     'Production Done',
     'Quality Received',
     'Quality Done',
     'Completed',
+  ] as const;
+
+  // For the "Active Work Orders" section, we explicitly exclude Completed.
+  private readonly QUALITY_ACTIVE_STATUSES = [
+    'Production Done',
+    'Quality Received',
+    'Quality Done',
   ] as const;
 
   private parseSerial(serial: unknown): { serial: string; num: number; suffix: string } | null {
@@ -266,9 +277,14 @@ export class WorkOrdersService {
       query = query.eq('status', status);
     }
 
-    // Gate Quality visibility to post-production statuses
-    if (userRole === 'quality') {
+    // Gate Quality/Rework visibility to post-production statuses
+    if (userRole === 'quality' || userRole === 'rework') {
       query = query.in('status', [...this.QUALITY_VISIBLE_STATUSES]);
+    }
+
+    // Rework should only see work orders that failed Quality (sent back for rework).
+    if (userRole === 'rework') {
+      query = query.eq('quality_result', 'Fail');
     }
 
     // Apply sorting
@@ -315,8 +331,8 @@ export class WorkOrdersService {
 
     if (error) throw new NotFoundException('Work order not found');
 
-    // Gate Quality visibility to post-production statuses
-    if (userRole === 'quality' && !this.QUALITY_VISIBLE_STATUSES.includes(data.status)) {
+    // Gate Quality/Rework visibility to post-production statuses
+    if ((userRole === 'quality' || userRole === 'rework') && !this.QUALITY_VISIBLE_STATUSES.includes(data.status)) {
       throw new NotFoundException('Work order not found');
     }
 
@@ -325,6 +341,12 @@ export class WorkOrdersService {
 
   async update(id: string, updateWorkOrderDto: UpdateWorkOrderDto) {
     const supabase = this.supabaseService.getClient();
+    const { data: before } = await supabase
+      .from('work_orders')
+      .select('id, status, quality_result')
+      .eq('id', id)
+      .single();
+
     const { data, error } = await supabase
       .from('work_orders')
       .update(updateWorkOrderDto)
@@ -337,16 +359,41 @@ export class WorkOrdersService {
       .single();
 
     if (error) throw error;
+
+    // v1: emit a generic update event (kept lightweight)
+    await this.notificationsService.emit({
+      eventType: 'work_order.updated',
+      entityType: 'work_order',
+      entityId: data.id,
+      // actorId unknown in this method signature (existing code); exclude not possible here
+      actorId: null,
+      payload: {
+        work_order_id: data.id,
+        changed: Object.keys(updateWorkOrderDto || {}),
+        // include key fields for role routing if present
+        status: data.status ?? null,
+        quality_result: data.quality_result ?? null,
+        before_status: before?.status ?? null,
+        before_quality_result: before?.quality_result ?? null,
+      },
+    });
+
     return data;
   }
 
-  async updateStatus(id: string, status: string, userRole?: string) {
+  async updateStatus(id: string, status: string, userRole?: string, actorId?: string | null) {
     // Restrict Quality to post-production statuses only
     if (userRole === 'quality' && !this.QUALITY_VISIBLE_STATUSES.includes(status as any)) {
       throw new ForbiddenException('Quality can only set post-production statuses');
     }
 
     const supabase = this.supabaseService.getClient();
+    const { data: before } = await supabase
+      .from('work_orders')
+      .select('id, status, quality_result')
+      .eq('id', id)
+      .single();
+
     const { data, error } = await supabase
       .from('work_orders')
       .update({ status })
@@ -359,11 +406,33 @@ export class WorkOrdersService {
       .single();
 
     if (error) throw error;
+
+    if (before?.status !== data?.status) {
+      await this.notificationsService.emit({
+        eventType: 'work_order.status_changed',
+        entityType: 'work_order',
+        entityId: data.id,
+        actorId: actorId ?? null,
+        payload: {
+          work_order_id: data.id,
+          from: before?.status ?? null,
+          to: data?.status ?? null,
+          quality_result: data.quality_result ?? null,
+        },
+      });
+    }
+
     return data;
   }
 
-  async updateQualityResult(id: string, quality_result: string, _userRole?: string) {
+  async updateQualityResult(id: string, quality_result: string, _userRole?: string, actorId?: string | null) {
     const supabase = this.supabaseService.getClient();
+    const { data: before } = await supabase
+      .from('work_orders')
+      .select('id, status, quality_result')
+      .eq('id', id)
+      .single();
+
     const { data, error } = await supabase
       .from('work_orders')
       .update({ quality_result })
@@ -376,6 +445,22 @@ export class WorkOrdersService {
       .single();
 
     if (error) throw error;
+
+    if (before?.quality_result !== data?.quality_result) {
+      await this.notificationsService.emit({
+        eventType: 'work_order.quality_result_changed',
+        entityType: 'work_order',
+        entityId: data.id,
+        actorId: actorId ?? null,
+        payload: {
+          work_order_id: data.id,
+          from: before?.quality_result ?? null,
+          to: data?.quality_result ?? null,
+          quality_result: data.quality_result ?? null,
+        },
+      });
+    }
+
     return data;
   }
 
@@ -397,11 +482,16 @@ export class WorkOrdersService {
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Existing behavior: active list is for in-production. For Quality, show only post-production.
-    if (userRole === 'quality') {
-      query = query.in('status', [...this.QUALITY_VISIBLE_STATUSES]);
+    // Existing behavior: active list is for in-production. For Quality/Rework, show only post-production.
+    if (userRole === 'quality' || userRole === 'rework') {
+      query = query.in('status', [...this.QUALITY_ACTIVE_STATUSES]);
     } else {
       query = query.eq('status', 'Active');
+    }
+
+    // Rework only sees the "sent back" failures.
+    if (userRole === 'rework') {
+      query = query.eq('quality_result', 'Fail');
     }
 
     const { data, error } = await query;

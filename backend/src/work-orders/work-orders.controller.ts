@@ -78,13 +78,23 @@ export class WorkOrdersController {
   @Patch(':id/status')
   @Roles('admin', 'quality')
   updateStatus(@Param('id') id: string, @Body() body: UpdateWorkOrderStatusDto, @Request() req) {
-    return this.workOrdersService.updateStatus(id, body.status, req?.user?.role);
+    return this.workOrdersService.updateStatus(
+      id,
+      body.status,
+      req?.user?.role,
+      req?.user?.userId ?? req?.user?.id ?? null,
+    );
   }
 
   @Patch(':id/quality-result')
   @Roles('admin', 'quality')
   updateQualityResult(@Param('id') id: string, @Body() body: UpdateWorkOrderQualityResultDto, @Request() req) {
-    return this.workOrdersService.updateQualityResult(id, body.quality_result, req?.user?.role);
+    return this.workOrdersService.updateQualityResult(
+      id,
+      body.quality_result,
+      req?.user?.role,
+      req?.user?.userId ?? req?.user?.id ?? null,
+    );
   }
 
   @Delete(':id')
