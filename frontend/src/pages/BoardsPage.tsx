@@ -422,6 +422,11 @@ export default function BoardsPage() {
                                     {b.internal_g_number}
                                   </Badge>
                                 )}
+                                {b.revision && (
+                                  <Badge variant="secondary" className="font-normal">
+                                    Rev {b.revision}
+                                  </Badge>
+                                )}
                                 <Badge variant="secondary" className="font-normal">
                                   {workOrderCount} WO
                                 </Badge>
