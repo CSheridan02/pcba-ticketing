@@ -880,6 +880,7 @@ export default function WorkOrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="recent">Recent (default)</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
                 <SelectItem value="serial_number">Serial Number</SelectItem>
               </SelectContent>
             </Select>
@@ -915,6 +916,10 @@ export default function WorkOrdersPage() {
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
                       <div>
                         <span className="text-gray-500">ASM:</span> {wo.asm_number}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Rev:</span>{' '}
+                        {wo.board?.revision || '—'}
                       </div>
                       <div>
                         <span className="text-gray-500">Qty:</span> {wo.quantity}
@@ -967,6 +972,7 @@ export default function WorkOrdersPage() {
                 <tr>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Work Order #</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">ASM #</th>
+                  <th className="text-left p-4 font-medium text-sm text-gray-700">Revision</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Serial Range</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Description</th>
                   <th className="text-left p-4 font-medium text-sm text-gray-700">Quantity</th>
@@ -981,13 +987,13 @@ export default function WorkOrdersPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={profile?.role === 'admin' ? 9 : 8} className="text-center p-8 text-gray-500">
+                    <td colSpan={profile?.role === 'admin' ? 10 : 9} className="text-center p-8 text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : workOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={profile?.role === 'admin' ? 9 : 8} className="text-center p-8 text-gray-500">
+                    <td colSpan={profile?.role === 'admin' ? 10 : 9} className="text-center p-8 text-gray-500">
                       No work orders found
                     </td>
                   </tr>
@@ -1006,6 +1012,7 @@ export default function WorkOrdersPage() {
                         <span className="text-primary font-medium">{wo.work_order_number}</span>
                       </td>
                       <td className="p-4 text-gray-700">{wo.asm_number}</td>
+                      <td className="p-4 text-gray-700">{wo.board?.revision || '—'}</td>
                       <td className="p-4 text-gray-700">
                         <div className="text-sm font-mono space-y-1">
                           {wo.serial_ranges && wo.serial_ranges.length > 0 ? (

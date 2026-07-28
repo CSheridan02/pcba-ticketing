@@ -27,6 +27,15 @@ export class WorkOrdersService {
     'Quality Done',
   ] as const;
 
+  private readonly STATUS_SORT_ORDER = [
+    'Not Started',
+    'Active',
+    'Production Done',
+    'Quality Received',
+    'Quality Done',
+    'Completed',
+  ] as const;
+
   private parseSerial(serial: unknown): { serial: string; num: number; suffix: string } | null {
     const s = (serial || '').toString().trim().toUpperCase();
     // Expected format: digits + single alpha suffix (commonly W)
@@ -261,7 +270,7 @@ export class WorkOrdersService {
       .from('work_orders')
       .select(`
         *,
-        board:boards(id, asm_number, internal_g_number, description),
+        board:boards(id, asm_number, internal_g_number, description, revision),
         created_by_user:users!work_orders_created_by_fkey(id, full_name),
         tickets(count),
         quality_tickets(count)
@@ -301,6 +310,17 @@ export class WorkOrdersService {
     const { data, error } = await query;
 
     if (error) throw error;
+
+    if (sortBy === 'status' && data) {
+      const orderMap = new Map(this.STATUS_SORT_ORDER.map((s, i) => [s, i]));
+      data.sort((a, b) => {
+        const aIdx = orderMap.get(a.status) ?? Number.MAX_SAFE_INTEGER;
+        const bIdx = orderMap.get(b.status) ?? Number.MAX_SAFE_INTEGER;
+        if (aIdx !== bIdx) return aIdx - bIdx;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    }
+
     return data;
   }
 
@@ -353,7 +373,7 @@ export class WorkOrdersService {
       .eq('id', id)
       .select(`
         *,
-        board:boards(id, asm_number, internal_g_number, description),
+        board:boards(id, asm_number, internal_g_number, description, revision),
         created_by_user:users!work_orders_created_by_fkey(id, full_name)
       `)
       .single();
@@ -400,7 +420,7 @@ export class WorkOrdersService {
       .eq('id', id)
       .select(`
         *,
-        board:boards(id, asm_number, internal_g_number, description),
+        board:boards(id, asm_number, internal_g_number, description, revision),
         created_by_user:users!work_orders_created_by_fkey(id, full_name)
       `)
       .single();
@@ -439,7 +459,7 @@ export class WorkOrdersService {
       .eq('id', id)
       .select(`
         *,
-        board:boards(id, asm_number, internal_g_number, description),
+        board:boards(id, asm_number, internal_g_number, description, revision),
         created_by_user:users!work_orders_created_by_fkey(id, full_name)
       `)
       .single();
